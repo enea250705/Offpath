@@ -1,8 +1,7 @@
 import SwiftUI
 
-// MARK: - Modern Google Sign-In button
-// Matches Google's branding guidelines for the "Standard" button.
-// Designed to align perfectly with the Apple Sign-In button.
+// MARK: - Official Google Sign-In button
+// Matches the provided screenshot: Logo on the left, text centered.
 
 struct GoogleSignInButton: View {
     let label: String
@@ -10,26 +9,32 @@ struct GoogleSignInButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                GoogleGLogo()
-                    .frame(width: 18, height: 18)
-                    .padding(.leading, 12)
-
-                Text(label)
-                    .font(.system(size: 16, weight: .medium, design: .default))
-                    .foregroundStyle(Color(red: 0.25, green: 0.25, blue: 0.25))
+            ZStack {
+                // Background Layer
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 1)
                 
-                Spacer()
+                // Border Layer
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(white: 0.92), lineWidth: 1)
+                
+                // Content Layer
+                HStack {
+                    GoogleGLogo()
+                        .frame(width: 22, height: 22)
+                        .padding(.leading, 12)
+                    
+                    Spacer()
+                }
+                
+                // Centered Text
+                Text(label)
+                    .font(.system(size: 16, weight: .bold, design: .default))
+                    .foregroundStyle(.black)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 52)
-            .background(Color.white)
-            .clipShape(.rect(cornerRadius: 12)) // Softer, more modern corners
-            .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 2)
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(white: 0.9), lineWidth: 0.5)
-            }
         }
         .buttonStyle(GoogleButtonStyle())
     }
@@ -80,7 +85,7 @@ private struct GoogleGLogo: View {
             
             // Inner cutout (white)
             var cutout = Path()
-            cutout.addEllipse(in: CGRect(x: cx - r*0.65, y: cy - r*0.65, width: r*1.3, height: r*1.3))
+            cutout.addEllipse(in: CGRect(x: cx - r*0.6, y: cy - r*0.6, width: r*1.2, height: r*1.2))
             ctx.blendMode = .clear
             ctx.fill(cutout, with: .color(.white))
         }
