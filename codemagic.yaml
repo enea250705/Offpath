@@ -4,6 +4,9 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
 
+    integrations:
+      app_store_connect: Codemagic
+
     environment:
       ios_signing:
         distribution_type: app_store
@@ -15,10 +18,6 @@ workflows:
         APP_STORE_APPLE_ID: 6760982389
 
     scripts:
-      - name: Set Xcode version
-        script: |
-          sudo xcode-select -p
-
       - name: Install dependencies
         script: |
           cd ios
