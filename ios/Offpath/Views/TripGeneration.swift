@@ -267,19 +267,20 @@ struct TripGenerationView: View {
         return LocationCoordinate(latitude: 48.8566, longitude: 2.3522) // Paris as fallback
     }
 
-    // Generate curved bezier path between origin and destination
+    // Generate curved bezier path between origin and destination.
+    // Arc scale kept small (0.10) so the plane stays within the visible map region.
     private func buildPath() {
-        let origin = originCoord
-        let dest   = destinationCoord
-        let segments = 120
+        let origin   = originCoord
+        let dest     = destinationCoord
+        let segments = 180   // more points = smoother movement
 
-        // Bezier control point — offset perpendicular to the midpoint for a nice arc
         let midLat = (origin.latitude  + dest.latitude)  / 2
         let midLon = (origin.longitude + dest.longitude) / 2
         let dLat   = dest.latitude  - origin.latitude
         let dLon   = dest.longitude - origin.longitude
-        // Perpendicular offset scaled by distance
-        let scale  = 0.25
+
+        // Smaller perpendicular offset so the arc fits inside the overview viewport
+        let scale   = 0.10
         let ctrlLat = midLat - dLon * scale
         let ctrlLon = midLon + dLat * scale
 
@@ -295,13 +296,28 @@ struct TripGenerationView: View {
     private func updateCamera() {
         let origin = originCoord
         let dest   = destinationCoord
-        let centerLat = (origin.latitude  + dest.latitude)  / 2
-        let centerLon = (origin.longitude + dest.longitude) / 2
-        let spanLat = abs(dest.latitude  - origin.latitude)  * 1.6
-        let spanLon = abs(dest.longitude - origin.longitude) * 1.6
+
+        // Compute bounds that include the full Bezier arc, not just the endpoints
+        let allLats = pathPoints.isEmpty
+            ? [origin.latitude, dest.latitude]
+            : pathPoints.map(\.latitude)
+        let allLons = pathPoints.isEmpty
+            ? [origin.longitude, dest.longitude]
+            : pathPoints.map(\.longitude)
+
+        let minLat = allLats.min()!, maxLat = allLats.max()!
+        let minLon = allLons.min()!, maxLon = allLons.max()!
+        let centerLat = (minLat + maxLat) / 2
+        let centerLon = (minLon + maxLon) / 2
+        let spanLat   = (maxLat - minLat) * 1.5
+        let spanLon   = (maxLon - minLon) * 1.5
+
         mapPosition = .region(MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
-            span: MKCoordinateSpan(latitudeDelta: max(spanLat, 10), longitudeDelta: max(spanLon, 10))
+            span: MKCoordinateSpan(
+                latitudeDelta:  max(spanLat, 8),
+                longitudeDelta: max(spanLon, 8)
+            )
         ))
     }
 
@@ -331,30 +347,45 @@ struct TripGenerationView: View {
             }
         }
 
-        // Fly the plane + trigger destination zoom-in when ~85% done
+        // Fly the plane over 6.6s (180 steps × 37ms).
+        // At 85% progress the map zooms in; the plane simultaneously fast-lands
+        // to destination so it stays visible and on-path during the zoom.
         Task {
-            for step in 0...120 {
-                let t = Double(step) / 120.0
+            for step in 0...180 {
+                let t = Double(step) / 180.0
                 // Ease in-out cubic
                 let eased = t < 0.5 ? 4*t*t*t : 1 - pow(-2*t+2, 3)/2
+
                 await MainActor.run {
-                    withAnimation(.linear(duration: 0.04)) {
+                    withAnimation(.linear(duration: 0.035)) {
                         progress      = eased
                         trailProgress = eased
                     }
 
-                    // When plane is ~85% to destination, smoothly zoom into arrival city
+                    // At 85%: zoom map in AND slide plane to destination over 2.5s
                     if eased >= 0.85 && !hasZoomedIn {
                         hasZoomedIn = true
-                        withAnimation(.easeInOut(duration: 2.8)) {
+
+                        // Map zooms into destination
+                        withAnimation(.easeInOut(duration: 2.5)) {
                             mapPosition = .region(MKCoordinateRegion(
                                 center: destinationCoord,
                                 span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
                             ))
                         }
+
+                        // Plane completes its flight in sync with the zoom
+                        withAnimation(.easeIn(duration: 2.5)) {
+                            progress      = 1.0
+                            trailProgress = 1.0
+                        }
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(55))
+
+                // Stop stepping once the zoom+land animation has been triggered
+                if hasZoomedIn { break }
+
+                try? await Task.sleep(for: .milliseconds(37))
             }
         }
 
