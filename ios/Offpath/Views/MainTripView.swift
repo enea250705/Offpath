@@ -18,14 +18,6 @@ struct MainTripView: View {
                     MapTabView(viewModel: viewModel)
                 case .account:
                     AccountTabView(viewModel: viewModel)
-                #if DEBUG
-                case .backend:
-                    ScrollView {
-                        BackendBlueprintScreen()
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
-                    }
-                #endif
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -33,6 +25,7 @@ struct MainTripView: View {
 
             // Floating liquid glass tab bar
             OffpathTabBar(viewModel: viewModel)
+                .ignoresSafeArea(edges: .bottom)
         }
     }
 }
@@ -43,11 +36,7 @@ struct OffpathTabBar: View {
     let viewModel: OffpathViewModel
 
     private var visibleTabs: [TripTab] {
-        #if DEBUG
-        return TripTab.allCases
-        #else
         return [.itinerary, .hidden, .guide, .map, .account]
-        #endif
     }
 
     var body: some View {
@@ -138,7 +127,7 @@ struct OffpathTabBar: View {
         .shadow(color: .black.opacity(0.28), radius: 24, y: 8)
         .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
         .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+        .padding(.bottom, 4)
     }
 
     @Namespace private var tabNamespace
