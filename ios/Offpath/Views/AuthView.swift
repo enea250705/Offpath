@@ -61,26 +61,14 @@ struct AuthView: View {
                 }
             }
             .signInWithAppleButtonStyle(.white)
-            .frame(height: 56)
-            .clipShape(.rect(cornerRadius: 18))
+            .frame(height: 52)
+            .clipShape(.rect(cornerRadius: 4))
 
-            // MARK: Google Sign-In
-            Button {
+            // MARK: Google Sign-In — official branded button
+            GoogleSignInButton(label: "Continue with Google") {
                 Task { await viewModel.completeGoogleAuth() }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "globe")
-                        .font(.headline)
-                    Text("Continue with Google")
-                        .font(.headline)
-                    Spacer()
-                }
-                .padding(.horizontal, 18)
-                .frame(height: 56)
-                .background(.white, in: .rect(cornerRadius: 18))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.black)
+            .frame(height: 52)
         }
     }
 
