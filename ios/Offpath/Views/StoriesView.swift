@@ -90,6 +90,8 @@ struct StoriesView: View {
                                 image
                                     .resizable()
                                     .scaledToFill()
+                                    .frame(maxWidth: UIScreen.main.bounds.width, maxHeight: UIScreen.main.bounds.height)
+                                    .clipped()
                                     .ignoresSafeArea()
                                     .transition(.opacity)
                             default:
@@ -126,7 +128,6 @@ struct StoriesView: View {
                 }
 
                 // Content
-                GeometryReader { screen in
                 VStack(alignment: .leading, spacing: 0) {
                     // Progress bars
                     HStack(spacing: 4) {
@@ -209,8 +210,6 @@ struct StoriesView: View {
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 80)
-                }
-                .frame(width: screen.size.width)
                 }
 
                 // Skip button top-right
