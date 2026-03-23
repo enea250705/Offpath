@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import CoreLocation
 
 struct TripGenerationView: View {
     let viewModel: OffpathViewModel
@@ -12,6 +13,7 @@ struct TripGenerationView: View {
     @State private var mapPosition: MapCameraPosition = .automatic
     @State private var pathPoints: [CLLocationCoordinate2D] = []
     @State private var hasZoomedIn: Bool      = false
+    @State private var resolvedDestination: CLLocationCoordinate2D? = nil
 
     private let loadingMessages = [
         "Reading the city like a local...",
@@ -71,9 +73,12 @@ struct TripGenerationView: View {
         }
         .ignoresSafeArea()
         .onAppear {
-            buildPath()
-            updateCamera()
-            startAnimations()
+            Task {
+                await resolveDestinationCoordinate()
+                buildPath()
+                updateCamera()
+                startAnimations()
+            }
         }
     }
 
@@ -241,30 +246,27 @@ struct TripGenerationView: View {
     }
 
     private var destinationCoord: CLLocationCoordinate2D {
-        approximateDestination.clCoordinate
+        // Use geocoded result when available, fall back to user's own location
+        // until geocoding completes (animation hasn't started yet at that point)
+        resolvedDestination ?? originCoord
     }
 
-    private var approximateDestination: LocationCoordinate {
-        let text = viewModel.answers.destination.lowercased()
-        if text.contains("lisbon")      { return LocationCoordinate(latitude: 38.7223,  longitude: -9.1393)  }
-        if text.contains("kyoto")       { return LocationCoordinate(latitude: 35.0116,  longitude: 135.7681) }
-        if text.contains("mexico")      { return LocationCoordinate(latitude: 19.4326,  longitude: -99.1332) }
-        if text.contains("istanbul")    { return LocationCoordinate(latitude: 41.0082,  longitude: 28.9784)  }
-        if text.contains("paris")       { return LocationCoordinate(latitude: 48.8566,  longitude: 2.3522)   }
-        if text.contains("tokyo")       { return LocationCoordinate(latitude: 35.6762,  longitude: 139.6503) }
-        if text.contains("new york")    { return LocationCoordinate(latitude: 40.7128,  longitude: -74.0060) }
-        if text.contains("barcelona")   { return LocationCoordinate(latitude: 41.3851,  longitude: 2.1734)   }
-        if text.contains("amsterdam")   { return LocationCoordinate(latitude: 52.3676,  longitude: 4.9041)   }
-        if text.contains("rome")        { return LocationCoordinate(latitude: 41.9028,  longitude: 12.4964)  }
-        if text.contains("london")      { return LocationCoordinate(latitude: 51.5074,  longitude: -0.1278)  }
-        if text.contains("dubai")       { return LocationCoordinate(latitude: 25.2048,  longitude: 55.2708)  }
-        if text.contains("bangkok")     { return LocationCoordinate(latitude: 13.7563,  longitude: 100.5018) }
-        if text.contains("bali")        { return LocationCoordinate(latitude: -8.3405,  longitude: 115.0920) }
-        if text.contains("prague")      { return LocationCoordinate(latitude: 50.0755,  longitude: 14.4378)  }
-        if text.contains("vienna")      { return LocationCoordinate(latitude: 48.2082,  longitude: 16.3738)  }
-        if text.contains("miami")       { return LocationCoordinate(latitude: 25.7617,  longitude: -80.1918) }
-        if text.contains("sydney")      { return LocationCoordinate(latitude: -33.8688, longitude: 151.2093) }
-        return LocationCoordinate(latitude: 48.8566, longitude: 2.3522) // Paris as fallback
+    // Geocode the destination city string using CLGeocoder so any city works,
+    // not just the hardcoded 17. Appending ", city" biases toward city results.
+    private func resolveDestinationCoordinate() async {
+        let query = viewModel.answers.destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+
+        return await withCheckedContinuation { continuation in
+            CLGeocoder().geocodeAddressString("\(query), city") { placemarks, _ in
+                if let coord = placemarks?.first?.location?.coordinate {
+                    Task { @MainActor in
+                        self.resolvedDestination = coord
+                    }
+                }
+                continuation.resume()
+            }
+        }
     }
 
     // Generate curved bezier path between origin and destination.
