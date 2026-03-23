@@ -4,304 +4,275 @@ struct OnboardingFlowView: View {
     let viewModel: OffpathViewModel
 
     var body: some View {
-        GeometryReader { geo in
-            VStack(spacing: 0) {
-                compactHeader
-                    .padding(.horizontal, 22)
-                    .padding(.top, max(geo.safeAreaInsets.top, 20) + 10)
-
-                Spacer(minLength: 12)
-
-                questionCard
-                    .padding(.horizontal, 22)
-
-                Spacer(minLength: 12)
-
-                continueButton
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, max(geo.safeAreaInsets.bottom, 16) + 8)
-            }
+        VStack(spacing: 0) {
+            header
+            Spacer(minLength: 20)
+            questionCard
+            Spacer(minLength: 16)
+            footerButton
         }
-        .ignoresSafeArea()
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
     }
 
-    // MARK: - Header
-
-    private var compactHeader: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 6) {
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
                 Text("OFFPATH")
-                    .font(.system(size: 11, weight: .bold))
-                    .kerning(2.4)
-                    .foregroundStyle(.white.opacity(0.55))
+                    .font(.caption.weight(.semibold))
+                    .kerning(2.2)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.white.opacity(0.16), in: .capsule)
 
-                Text(viewModel.currentQuestionTitle)
-                    .font(.system(size: 22, weight: .bold))
+                Spacer()
+
+                Text("\(viewModel.currentQuestionIndex + 1)/4")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Travel planning that sounds like\nsomeone with taste is texting you.")
+                    .font(.system(.title, design: .default, weight: .bold))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Warm, opinionated, and actually useful.")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.8))
             }
 
-            Spacer()
-
-            // Step indicator
-            HStack(spacing: 6) {
-                ForEach(0..<4) { i in
-                    Capsule()
-                        .fill(i <= viewModel.currentQuestionIndex ? Color.white : Color.white.opacity(0.25))
-                        .frame(width: i == viewModel.currentQuestionIndex ? 20 : 6, height: 6)
-                        .animation(.spring(duration: 0.35), value: viewModel.currentQuestionIndex)
-                }
-            }
+            ProgressView(value: Double(viewModel.currentQuestionIndex + 1), total: 4)
+                .tint(.white)
+                .progressViewStyle(.linear)
         }
     }
-
-    // MARK: - Card
 
     private var questionCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(viewModel.currentQuestionPrompt)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.70))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(viewModel.currentQuestionTitle)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
 
-            Divider().overlay(.white.opacity(0.12))
+                Text(viewModel.currentQuestionPrompt)
+                    .font(.system(.title3, design: .default, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            questionContent
+            Group {
+                switch viewModel.currentQuestionIndex {
+                case 0:
+                    destinationModePicker
+                case 1:
+                    destinationQuestion
+                case 2:
+                    travelerGroupPicker
+                default:
+                    tripLengthPicker
+                }
+            }
         }
         .padding(20)
-        .background(.white.opacity(0.08), in: .rect(cornerRadius: 26))
-        .overlay { RoundedRectangle(cornerRadius: 26).strokeBorder(.white.opacity(0.14)) }
-    }
-
-    @ViewBuilder
-    private var questionContent: some View {
-        switch viewModel.currentQuestionIndex {
-        case 0:
-            destinationModeContent
-        case 1:
-            destinationContent
-        case 2:
-            groupContent
-        default:
-            tripLengthContent
+        .background(.regularMaterial, in: .rect(cornerRadius: 28))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28)
+                .strokeBorder(.white.opacity(0.18))
         }
     }
 
-    // MARK: - Q0: Mode
-
-    private var destinationModeContent: some View {
-        VStack(spacing: 10) {
+    private var destinationModePicker: some View {
+        VStack(spacing: 12) {
             ForEach(DestinationMode.allCases) { mode in
-                CompactOptionButton(
+                OptionButton(
                     title: mode.rawValue,
-                    detail: mode == .know ? "I have a city in mind" : "Surprise me with a great pick",
-                    isSelected: viewModel.answers.destinationMode == mode,
-                    accent: Color.white
+                    subtitle: mode == .know ? "Start with your city, then I'll tighten the route." : "I'll pick somewhere that fits your energy.",
+                    isSelected: viewModel.answers.destinationMode == mode
                 ) {
                     viewModel.answers.destinationMode = mode
-                    if mode == .suggest { viewModel.answers.destination = "" }
+                    if mode == .suggest {
+                        viewModel.answers.destination = ""
+                    }
                 }
             }
         }
     }
 
-    // MARK: - Q1: Destination / Style
-
-    private var destinationContent: some View {
-        Group {
+    private var destinationQuestion: some View {
+        VStack(spacing: 12) {
             if viewModel.answers.destinationMode == .suggest {
-                let cols = [GridItem(.flexible()), GridItem(.flexible())]
-                LazyVGrid(columns: cols, spacing: 10) {
-                    ForEach(TravelStyle.allCases) { style in
-                        CompactOptionButton(
-                            title: style.rawValue,
-                            detail: styleDetail(style),
-                            isSelected: viewModel.answers.style == style,
-                            accent: Color.white
-                        ) {
-                            viewModel.answers.style = style
-                        }
+                ForEach(TravelStyle.allCases) { style in
+                    OptionButton(
+                        title: style.rawValue,
+                        subtitle: styleSubtitle(for: style),
+                        isSelected: viewModel.answers.style == style
+                    ) {
+                        viewModel.answers.style = style
                     }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     TextField(
-                        "Lisbon, Tokyo, Oaxaca…",
+                        "Lisbon",
                         text: Binding(
                             get: { viewModel.answers.destination },
                             set: { viewModel.answers.destination = $0 }
                         )
                     )
                     .textInputAutocapitalization(.words)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(.title3.weight(.semibold))
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                    .background(.white.opacity(0.10), in: .rect(cornerRadius: 16))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(.white.opacity(0.20))
-                    }
+                    .padding(.vertical, 16)
+                    .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
 
-                    Text("Enter any city. I'll make it count.")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.45))
+                    Text("Example: Lisbon, Oaxaca, Kyoto, or Mexico City.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    // MARK: - Q2: Group
-
-    private var groupContent: some View {
+    // Q3 — fixed: horizontal row so 3 options never overflow vertically
+    private var travelerGroupPicker: some View {
         HStack(spacing: 10) {
             ForEach(TravelerGroup.allCases) { group in
-                CompactOptionButton(
-                    title: group.rawValue,
-                    detail: groupDetail(group),
-                    isSelected: viewModel.answers.group == group,
-                    accent: Color.white
-                ) {
+                Button {
                     viewModel.answers.group = group
+                } label: {
+                    VStack(spacing: 8) {
+                        ZStack {
+                            Circle()
+                                .fill(viewModel.answers.group == group ? .blue : .clear)
+                                .frame(width: 20, height: 20)
+                            Circle()
+                                .strokeBorder(
+                                    viewModel.answers.group == group ? Color.blue : Color.secondary.opacity(0.5),
+                                    lineWidth: 2
+                                )
+                                .frame(width: 20, height: 20)
+                        }
+
+                        Text(group.rawValue)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+
+                        Text(groupSubtitle(for: group))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        viewModel.answers.group == group ? .blue.opacity(0.08) : Color(.secondarySystemBackground),
+                        in: .rect(cornerRadius: 18)
+                    )
                 }
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .animation(.easeInOut(duration: 0.18), value: viewModel.answers.group)
             }
         }
     }
 
-    // MARK: - Q3: Length
+    private var tripLengthPicker: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("\(viewModel.answers.tripLength) days")
+                .font(.system(.largeTitle, design: .default, weight: .bold))
 
-    private var tripLengthContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .lastTextBaseline, spacing: 6) {
-                Text("\(viewModel.answers.tripLength)")
-                    .font(.system(size: 52, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: viewModel.answers.tripLength)
-
-                Text("days")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .padding(.bottom, 6)
-            }
-
-            Slider(
-                value: Binding(
-                    get: { Double(viewModel.answers.tripLength) },
-                    set: { viewModel.answers.tripLength = Int($0.rounded()) }
-                ),
-                in: 2...14,
-                step: 1
-            )
-            .tint(.white)
+            Slider(value: Binding(
+                get: { Double(viewModel.answers.tripLength) },
+                set: { viewModel.answers.tripLength = Int($0.rounded()) }
+            ), in: 2...14, step: 1)
+            .tint(.blue)
 
             HStack {
-                Text("2 days")
+                Text("2")
                 Spacer()
-                Text("2 weeks")
+                Text("14")
             }
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.white.opacity(0.40))
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.secondary)
         }
     }
 
-    // MARK: - Continue button
-
-    private var continueButton: some View {
+    private var footerButton: some View {
         Button {
             viewModel.advanceQuestion()
         } label: {
             HStack {
                 Text(viewModel.currentQuestionIndex == 3 ? "Build my trip" : "Continue")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.headline)
                 Spacer()
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.headline.weight(.bold))
             }
-            .foregroundStyle(viewModel.canContinueQuestion ? .black : .white.opacity(0.45))
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 18)
             .padding(.vertical, 18)
-            .background(
-                viewModel.canContinueQuestion ? Color.white : Color.white.opacity(0.14),
-                in: .rect(cornerRadius: 22)
-            )
-            .animation(.easeInOut(duration: 0.2), value: viewModel.canContinueQuestion)
         }
         .buttonStyle(.plain)
+        .foregroundStyle(.white)
+        .background(viewModel.canContinueQuestion ? .black.opacity(0.78) : .white.opacity(0.25), in: .rect(cornerRadius: 22))
         .disabled(!viewModel.canContinueQuestion)
     }
 
-    // MARK: - Detail strings
-
-    private func styleDetail(_ style: TravelStyle) -> String {
+    private func styleSubtitle(for style: TravelStyle) -> String {
         switch style {
-        case .slow: return "Wander & breathe"
-        case .food: return "Tables & markets"
-        case .culture: return "Art & history"
-        case .nightlife: return "Late nights"
+        case .slow:      "Neighborhoods, unforced pacing, and time to wander properly."
+        case .food:      "Built around memorable tables, markets, and what's actually worth ordering."
+        case .culture:   "Design, history, and places with texture instead of noise."
+        case .nightlife: "Late dinners, bars with taste, and streets that stay interesting after dark."
         }
     }
 
-    private func groupDetail(_ group: TravelerGroup) -> String {
+    private func groupSubtitle(for group: TravelerGroup) -> String {
         switch group {
-        case .solo: return "Flexible"
-        case .couple: return "Romantic"
-        case .group: return "High energy"
+        case .solo:   "Flexible &\neasy to reroute"
+        case .couple: "Cinematic\npacing"
+        case .group:  "High energy,\nclean logistics"
         }
     }
 }
 
-// MARK: - Compact Option Button
+// MARK: - OptionButton (original style)
 
-struct CompactOptionButton: View {
+struct OptionButton: View {
     let title: String
-    let detail: String
+    let subtitle: String
     let isSelected: Bool
-    let accent: Color
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? accent : Color.clear)
-                        .frame(width: 16, height: 16)
-                    Circle()
-                        .strokeBorder(isSelected ? accent : accent.opacity(0.35), lineWidth: 1.5)
-                        .frame(width: 16, height: 16)
-                    if isSelected {
-                        Circle().fill(.black).frame(width: 6, height: 6)
+            HStack(alignment: .top, spacing: 14) {
+                Circle()
+                    .fill(isSelected ? .blue : .clear)
+                    .frame(width: 18, height: 18)
+                    .overlay {
+                        Circle().strokeBorder(isSelected ? .blue : .secondary.opacity(0.5), lineWidth: 2)
                     }
-                }
+                    .padding(.top, 2)
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    Text(detail)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(.white.opacity(0.50))
-                        .lineLimit(1)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 0)
+                Spacer()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                isSelected ? accent.opacity(0.12) : Color.white.opacity(0.06),
-                in: .rect(cornerRadius: 16)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(isSelected ? accent.opacity(0.45) : Color.clear, lineWidth: 1.5)
-            }
+            .padding(16)
+            .background(isSelected ? .blue.opacity(0.08) : Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
         }
         .buttonStyle(.plain)
-        .animation(.easeInOut(duration: 0.18), value: isSelected)
     }
 }

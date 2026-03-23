@@ -5,7 +5,7 @@ struct MainTripView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Content area
+            // Content area — full bleed
             Group {
                 switch viewModel.selectedTab {
                 case .itinerary:
@@ -29,15 +29,15 @@ struct MainTripView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(edges: .bottom)
 
-            // Bottom tab bar
+            // Floating liquid glass tab bar
             OffpathTabBar(viewModel: viewModel)
         }
-        .ignoresSafeArea(edges: .bottom)
     }
 }
 
-// MARK: - Tab bar
+// MARK: - Liquid glass tab bar
 
 struct OffpathTabBar: View {
     let viewModel: OffpathViewModel
@@ -53,35 +53,95 @@ struct OffpathTabBar: View {
     var body: some View {
         HStack(spacing: 0) {
             ForEach(visibleTabs) { tab in
+                let isSelected = viewModel.selectedTab == tab
                 Button {
-                    withAnimation(.spring(duration: 0.28)) {
+                    withAnimation(.spring(duration: 0.3, bounce: 0.2)) {
                         viewModel.selectedTab = tab
                     }
                 } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: viewModel.selectedTab == tab ? tab.selectedSymbol : tab.symbol)
-                            .font(.system(size: 20, weight: .medium))
-                            .symbolEffect(.bounce, value: viewModel.selectedTab == tab)
+                    VStack(spacing: 4) {
+                        ZStack {
+                            // Selected pill background
+                            if isSelected {
+                                Capsule()
+                                    .fill(.white.opacity(0.18))
+                                    .frame(width: 44, height: 30)
+                                    .overlay {
+                                        Capsule()
+                                            .strokeBorder(.white.opacity(0.35), lineWidth: 0.5)
+                                    }
+                                    .shadow(color: .white.opacity(0.12), radius: 6, y: 2)
+                                    .matchedGeometryEffect(id: "tabPill", in: tabNamespace)
+                            }
+
+                            Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
+                                .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                                .symbolEffect(.bounce.up.byLayer, value: isSelected)
+                                .foregroundStyle(isSelected ? .white : .white.opacity(0.40))
+                        }
+                        .frame(width: 44, height: 30)
 
                         Text(tab.title)
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: 9.5, weight: isSelected ? .semibold : .regular))
+                            .foregroundStyle(isSelected ? .white : .white.opacity(0.38))
                     }
-                    .foregroundStyle(viewModel.selectedTab == tab ? .white : .white.opacity(0.38))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .background(
-            .ultraThinMaterial.opacity(0.95)
-        )
-        .background(.black.opacity(0.72))
-        .overlay(alignment: .top) {
-            Divider().overlay(.white.opacity(0.10))
+        .padding(.horizontal, 10)
+        .background {
+            // Liquid glass layer
+            ZStack {
+                // Frosted base
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(.ultraThinMaterial)
+
+                // Glass tint
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.10),
+                                .white.opacity(0.04),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                // Specular top highlight
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [.white.opacity(0.22), .clear],
+                            startPoint: .top,
+                            endPoint: .init(x: 0.5, y: 0.35)
+                        )
+                    )
+
+                // Border
+                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.38), .white.opacity(0.08)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+            }
         }
-        .padding(.bottom, 0)
+        .shadow(color: .black.opacity(0.28), radius: 24, y: 8)
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 28)
     }
+
+    @Namespace private var tabNamespace
 }
 
 // MARK: - Itinerary tab
