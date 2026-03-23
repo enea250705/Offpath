@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find C:UserseneamDownloadsOffpath -type f -name *Config* -o -name *config*)",
+      "Bash(find C:UserseneamDownloadsOffpath -type f \\\\\\(-name *.swift -o -name *.plist \\\\\\))",
+      "Bash(find C:UserseneamDownloadsOffpath -type f -name *.swift)"
+    ]
+  }
+}
