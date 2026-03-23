@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 
 struct OnboardingFlowView: View {
     let viewModel: OffpathViewModel
@@ -114,24 +115,12 @@ struct OnboardingFlowView: View {
                     }
                 }
             } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    TextField(
-                        "Lisbon",
-                        text: Binding(
-                            get: { viewModel.answers.destination },
-                            set: { viewModel.answers.destination = $0 }
-                        )
+                CitySearchField(
+                    selectedCity: Binding(
+                        get: { viewModel.answers.destination },
+                        set: { viewModel.answers.destination = $0 }
                     )
-                    .textInputAutocapitalization(.words)
-                    .font(.title3.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
-                    .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
-
-                    Text("Example: Lisbon, Oaxaca, Kyoto, or Mexico City.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                )
             }
         }
     }
@@ -274,5 +263,164 @@ struct OptionButton: View {
             .background(isSelected ? .blue.opacity(0.08) : Color(.secondarySystemBackground), in: .rect(cornerRadius: 20))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - City search with live autocomplete
+// Uses MKLocalSearch to show city + country suggestions as the user types,
+// eliminating ambiguity between cities with the same name in different countries.
+
+@Observable
+final class CitySearchModel {
+    var query: String = ""
+    var suggestions: [CityResult] = []
+    var isSearching: Bool = false
+
+    private var searchTask: Task<Void, Never>?
+
+    func search() {
+        searchTask?.cancel()
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard q.count >= 2 else { suggestions = []; return }
+
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(300)) // debounce
+            guard !Task.isCancelled else { return }
+
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = q
+            request.resultTypes = .address
+
+            let results = try? await MKLocalSearch(request: request).start()
+            let cities: [CityResult] = (results?.mapItems ?? [])
+                .compactMap { item -> CityResult? in
+                    guard let city = item.placemark.locality ?? item.placemark.administrativeArea,
+                          let country = item.placemark.country else { return nil }
+                    return CityResult(city: city, country: country, countryCode: item.placemark.countryCode ?? "")
+                }
+                // Deduplicate by city+country
+                .reduce(into: [CityResult]()) { acc, r in
+                    if !acc.contains(where: { $0.city == r.city && $0.country == r.country }) {
+                        acc.append(r)
+                    }
+                }
+
+            await MainActor.run {
+                self.suggestions = Array(cities.prefix(5))
+            }
+        }
+    }
+
+    struct CityResult: Identifiable {
+        let id = UUID()
+        let city: String
+        let country: String
+        let countryCode: String
+
+        var display: String { "\(city), \(country)" }
+    }
+}
+
+struct CitySearchField: View {
+    @Binding var selectedCity: String
+    @State private var model = CitySearchModel()
+    @State private var showSuggestions: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Input row
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+
+                TextField("Tirana, Lisbon, Tokyo…", text: $model.query)
+                    .textInputAutocapitalization(.words)
+                    .font(.title3.weight(.semibold))
+                    .onChange(of: model.query) { _, new in
+                        if !new.isEmpty {
+                            showSuggestions = true
+                            model.search()
+                        } else {
+                            showSuggestions = false
+                            selectedCity = ""
+                        }
+                    }
+
+                if !model.query.isEmpty {
+                    Button {
+                        model.query = ""
+                        selectedCity = ""
+                        showSuggestions = false
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
+
+            // Suggestions list
+            if showSuggestions && !model.suggestions.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(model.suggestions) { result in
+                        Button {
+                            model.query  = result.display
+                            selectedCity = result.display
+                            showSuggestions = false
+                        } label: {
+                            HStack(spacing: 12) {
+                                Text(result.countryCode.countryFlagEmoji)
+                                    .font(.title3)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(result.city)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Text(result.country)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                        }
+                        .buttonStyle(.plain)
+
+                        if result.id != model.suggestions.last?.id {
+                            Divider().padding(.leading, 52)
+                        }
+                    }
+                }
+                .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 18))
+                .padding(.top, 6)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .animation(.easeOut(duration: 0.2), value: model.suggestions.count)
+            }
+
+            // Hint when nothing typed yet
+            if model.query.isEmpty {
+                Text("Type any city. I'll show you the exact one.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+}
+
+// Country code → flag emoji
+private extension String {
+    var countryFlagEmoji: String {
+        self.uppercased()
+            .unicodeScalars
+            .compactMap { Unicode.Scalar(127397 + $0.value) }
+            .map(String.init)
+            .joined()
     }
 }
