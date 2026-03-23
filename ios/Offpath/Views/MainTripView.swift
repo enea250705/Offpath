@@ -497,7 +497,9 @@ struct GuideInputBar: View {
                 }
 
             Button {
-                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                let draft = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !draft.isEmpty else { return }
+                viewModel.draftGuideInput = draft
                 text = ""
                 Task { await viewModel.sendGuideMessage() }
             } label: {
