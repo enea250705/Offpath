@@ -179,7 +179,7 @@ final class OffpathViewModel {
         // The screen only advances when BOTH are done — animation always plays fully.
         // Animation: 120 steps × 55ms = 6.6s flight + 2.8s zoom = ~9.5s total.
         async let generatedPlan = plannerService.generatePlan(from: answers, origin: locationService.currentCoordinate)
-        async let minimumWait: Void = Task.sleep(for: .seconds(9.5))
+        async let minimumWait: Void? = try? Task.sleep(for: .seconds(9.5))
 
         let (result, _) = await (generatedPlan, minimumWait)
 
