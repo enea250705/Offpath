@@ -311,9 +311,6 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
     case guide
     case map
     case account
-    #if DEBUG
-    case backend
-    #endif
 
     var id: String { rawValue }
 
@@ -324,9 +321,6 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
         case .guide:     return "Guide"
         case .map:       return "Map"
         case .account:   return "You"
-        #if DEBUG
-        case .backend:   return "Build"
-        #endif
         }
     }
 
@@ -337,9 +331,6 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
         case .guide:     return "bubble.left.and.bubble.right"
         case .map:       return "map"
         case .account:   return "person.circle"
-        #if DEBUG
-        case .backend:   return "server.rack"
-        #endif
         }
     }
 
@@ -350,9 +341,6 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
         case .guide:     return "bubble.left.and.bubble.right.fill"
         case .map:       return "map.fill"
         case .account:   return "person.circle.fill"
-        #if DEBUG
-        case .backend:   return "server.rack"
-        #endif
         }
     }
 }
