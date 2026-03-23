@@ -199,14 +199,6 @@ struct StoriesView: View {
                             .animation(.easeOut(duration: 0.55).delay(0.28), value: appear)
                         }
 
-                        // Photographer credit when showing a Pexels photo
-                        if let photo = currentPhoto {
-                            Text("Photo by \(photo.photographer) · Pexels")
-                                .font(.system(size: 10, weight: .regular))
-                                .foregroundStyle(.white.opacity(0.35))
-                                .opacity(appear ? 1 : 0)
-                                .animation(.easeOut(duration: 0.4).delay(0.4), value: appear)
-                        }
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 80)
