@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftUI
+import UserNotifications
 
 @Observable
 @MainActor
@@ -154,6 +155,11 @@ final class OffpathViewModel {
     func start() {
         locationService.requestAccessIfNeeded()
         purchaseService.start()
+        requestNotificationPermission()
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
     func advanceQuestion() {
@@ -172,6 +178,11 @@ final class OffpathViewModel {
         plan = generatedPlan
         persistPlan(generatedPlan)
         isGenerating = false
+        locationService.scheduleGeofences(for: generatedPlan)
+        appPhase = .stories   // show cinematic stories before preview
+    }
+
+    func advanceFromStories() {
         appPhase = .preview
     }
 
@@ -298,6 +309,8 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
     case itinerary
     case hidden
     case guide
+    case map
+    case account
     #if DEBUG
     case backend
     #endif
@@ -309,6 +322,8 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
         case .itinerary: return "Plan"
         case .hidden:    return "Hidden"
         case .guide:     return "Guide"
+        case .map:       return "Map"
+        case .account:   return "You"
         #if DEBUG
         case .backend:   return "Build"
         #endif
@@ -320,6 +335,21 @@ nonisolated enum TripTab: String, CaseIterable, Identifiable, Sendable {
         case .itinerary: return "sparkles.rectangle.stack"
         case .hidden:    return "eye.slash.circle"
         case .guide:     return "bubble.left.and.bubble.right"
+        case .map:       return "map"
+        case .account:   return "person.circle"
+        #if DEBUG
+        case .backend:   return "server.rack"
+        #endif
+        }
+    }
+
+    var selectedSymbol: String {
+        switch self {
+        case .itinerary: return "sparkles.rectangle.stack.fill"
+        case .hidden:    return "eye.slash.circle.fill"
+        case .guide:     return "bubble.left.and.bubble.right.fill"
+        case .map:       return "map.fill"
+        case .account:   return "person.circle.fill"
         #if DEBUG
         case .backend:   return "server.rack"
         #endif

@@ -8,16 +8,28 @@ struct RootView: View {
             switch viewModel.appPhase {
             case .onboarding:
                 OnboardingFlowView(viewModel: viewModel)
+                    .transition(.asymmetric(
+                        insertion: .opacity,
+                        removal: .opacity
+                    ))
             case .generating:
                 TripGenerationView(viewModel: viewModel)
+                    .transition(.opacity)
+            case .stories:
+                StoriesView(viewModel: viewModel)
+                    .transition(.opacity)
             case .preview:
                 PreviewUnlockView(viewModel: viewModel)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             case .auth:
                 AuthView(viewModel: viewModel)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             case .trip:
                 MainTripView(viewModel: viewModel)
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.4), value: viewModel.appPhase)
         .background(OffpathBackground())
         .task {
             viewModel.start()

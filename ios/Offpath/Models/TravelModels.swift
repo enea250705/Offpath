@@ -37,6 +37,7 @@ nonisolated enum TravelerGroup: String, CaseIterable, Identifiable, Codable, Sen
 nonisolated enum AppPhase: String, Sendable {
     case onboarding
     case generating
+    case stories     // post-generation cinematic stories
     case preview
     case auth
     case trip
@@ -147,10 +148,19 @@ nonisolated struct GuideMessage: Identifiable, Codable, Hashable, Sendable {
     let timestamp: Date
 
     init(id: UUID = UUID(), role: String, text: String, timestamp: Date = Date()) {
-        self.id = id
-        self.role = role
-        self.text = text
+        self.id        = id
+        self.role      = role
+        self.text      = text
         self.timestamp = timestamp
+    }
+
+    // Backend only sends role + text — fill in the rest with defaults
+    init(from decoder: Decoder) throws {
+        let c       = try decoder.container(keyedBy: CodingKeys.self)
+        self.id        = (try? c.decode(UUID.self,   forKey: .id))        ?? UUID()
+        self.role      = try  c.decode(String.self,  forKey: .role)
+        self.text      = try  c.decode(String.self,  forKey: .text)
+        self.timestamp = (try? c.decode(Date.self,   forKey: .timestamp)) ?? Date()
     }
 }
 

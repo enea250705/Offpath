@@ -4,260 +4,575 @@ struct MainTripView: View {
     let viewModel: OffpathViewModel
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    titleBlock
-                    tabStrip
-
-                    switch viewModel.selectedTab {
-                    case .itinerary:
-                        ItineraryScreen(
-                            days: viewModel.displayDays,
-                            intro: viewModel.plan?.intro ?? ""
-                        )
-                    case .hidden:
-                        HiddenPlacesScreen(
-                            hiddenPlaces: viewModel.displayHiddenPlaces,
-                            hasFullAccess: viewModel.hasFullAccess,
-                            onUpgrade: { viewModel.appPhase = .preview }
-                        )
-                    case .guide:
-                        GuideChatScreen(viewModel: viewModel)
-                    #if DEBUG
-                    case .backend:
+        ZStack(alignment: .bottom) {
+            // Content area
+            Group {
+                switch viewModel.selectedTab {
+                case .itinerary:
+                    ItineraryTabView(viewModel: viewModel)
+                case .hidden:
+                    HiddenTabView(viewModel: viewModel)
+                case .guide:
+                    GuideTabView(viewModel: viewModel)
+                case .map:
+                    MapTabView(viewModel: viewModel)
+                case .account:
+                    AccountTabView(viewModel: viewModel)
+                #if DEBUG
+                case .backend:
+                    ScrollView {
                         BackendBlueprintScreen()
-                    #endif
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
+                    }
+                #endif
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // Bottom tab bar
+            OffpathTabBar(viewModel: viewModel)
+        }
+        .ignoresSafeArea(edges: .bottom)
+    }
+}
+
+// MARK: - Tab bar
+
+struct OffpathTabBar: View {
+    let viewModel: OffpathViewModel
+
+    private var visibleTabs: [TripTab] {
+        #if DEBUG
+        return TripTab.allCases
+        #else
+        return [.itinerary, .hidden, .guide, .map, .account]
+        #endif
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(visibleTabs) { tab in
+                Button {
+                    withAnimation(.spring(duration: 0.28)) {
+                        viewModel.selectedTab = tab
+                    }
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: viewModel.selectedTab == tab ? tab.selectedSymbol : tab.symbol)
+                            .font(.system(size: 20, weight: .medium))
+                            .symbolEffect(.bounce, value: viewModel.selectedTab == tab)
+
+                        Text(tab.title)
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundStyle(viewModel.selectedTab == tab ? .white : .white.opacity(0.38))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(
+            .ultraThinMaterial.opacity(0.95)
+        )
+        .background(.black.opacity(0.72))
+        .overlay(alignment: .top) {
+            Divider().overlay(.white.opacity(0.10))
+        }
+        .padding(.bottom, 0)
+    }
+}
+
+// MARK: - Itinerary tab
+
+struct ItineraryTabView: View {
+    let viewModel: OffpathViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Hero header
+                heroHeader
+                    .padding(.horizontal, 22)
+                    .padding(.top, 60)
+                    .padding(.bottom, 24)
+
+                // Intro paragraph
+                if let intro = viewModel.plan?.intro, !intro.isEmpty {
+                    Text(intro)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .padding(.horizontal, 22)
+                        .padding(.bottom, 28)
+                }
+
+                // Day cards
+                VStack(spacing: 16) {
+                    ForEach(viewModel.displayDays) { day in
+                        MagazineDayCard(day: day)
+                            .padding(.horizontal, 16)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.bottom, 110)
+            }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var heroHeader: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text((viewModel.plan?.destinationCountry ?? "").uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .kerning(3)
+                .foregroundStyle(.white.opacity(0.50))
+
+            Text(viewModel.plan?.destinationCity ?? "Your Trip")
+                .font(.system(size: 38, weight: .bold))
+                .foregroundStyle(.white)
+
+            Text(viewModel.plan?.shareLine ?? "")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.68))
+                .lineLimit(2)
+        }
+    }
+}
+
+// MARK: - Magazine day card
+
+struct MagazineDayCard: View {
+    let day: ItineraryDay
+    @State private var expanded: Bool = true
+
+    // Accent color per day index
+    private var accentColor: Color {
+        let colors: [Color] = [
+            Color(red: 0.95, green: 0.55, blue: 0.25),
+            Color(red: 0.40, green: 0.75, blue: 0.90),
+            Color(red: 0.70, green: 0.50, blue: 1.00),
+            Color(red: 0.35, green: 0.85, blue: 0.65),
+            Color(red: 1.00, green: 0.75, blue: 0.30),
+            Color(red: 0.90, green: 0.40, blue: 0.60),
+            Color(red: 0.40, green: 0.65, blue: 1.00),
+        ]
+        return colors[(day.dayNumber - 1) % colors.count]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Day header
+            Button {
+                withAnimation(.spring(duration: 0.35)) { expanded.toggle() }
+            } label: {
+                HStack(alignment: .center, spacing: 14) {
+                    // Day number badge
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(accentColor.opacity(0.18))
+                            .frame(width: 48, height: 48)
+                        VStack(spacing: 1) {
+                            Text("DAY")
+                                .font(.system(size: 8, weight: .bold))
+                                .kerning(1)
+                                .foregroundStyle(accentColor.opacity(0.80))
+                            Text("\(day.dayNumber)")
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundStyle(accentColor)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(day.title)
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Text(day.mood)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 18)
                 .padding(.vertical, 16)
             }
-            .toolbar(.hidden, for: .navigationBar)
-        }
-    }
-
-    private var titleBlock: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(viewModel.plan?.destinationCity ?? "Offpath")
-                    .font(.system(.largeTitle, design: .default, weight: .bold))
-                    .foregroundStyle(.white)
-                Text(viewModel.plan?.shareLine ?? "")
-                    .font(.headline)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-            Spacer()
-            // Sign-out button
-            Button {
-                viewModel.signOut()
-            } label: {
-                Image(systemName: "arrow.backward.circle")
-                    .font(.title2)
-                    .foregroundStyle(.white.opacity(0.7))
-            }
             .buttonStyle(.plain)
+
+            // Moments timeline
+            if expanded {
+                Divider()
+                    .overlay(accentColor.opacity(0.20))
+                    .padding(.horizontal, 18)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(day.moments.enumerated()), id: \.element.id) { index, moment in
+                        MomentRow(
+                            moment: moment,
+                            accentColor: accentColor,
+                            isLast: index == day.moments.count - 1
+                        )
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(.regularMaterial, in: .rect(cornerRadius: 24))
+        .overlay {
+            RoundedRectangle(cornerRadius: 24)
+                .strokeBorder(accentColor.opacity(0.18))
         }
     }
+}
 
-    private var tabStrip: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 10) {
-                ForEach(TripTab.allCases) { tab in
-                    let isSelected = viewModel.selectedTab == tab
-                    Button {
-                        withAnimation(.snappy) { viewModel.selectedTab = tab }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: tab.symbol)
-                            Text(tab.title)
-                        }
-                        .font(.subheadline.weight(.semibold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(isSelected ? .white : .white.opacity(0.12), in: .capsule)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(isSelected ? .black : .white)
+// MARK: - Moment row (timeline)
+
+struct MomentRow: View {
+    let moment: ItineraryMoment
+    let accentColor: Color
+    let isLast: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            // Timeline
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(accentColor)
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 6)
+
+                if !isLast {
+                    Rectangle()
+                        .fill(accentColor.opacity(0.20))
+                        .frame(width: 1.5)
+                        .frame(maxHeight: .infinity)
                 }
             }
+            .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 6) {
+                // Time + title
+                Text(moment.timeLabel)
+                    .font(.system(size: 11, weight: .semibold))
+                    .kerning(0.5)
+                    .foregroundStyle(accentColor)
+                    .padding(.top, 2)
+
+                Text(moment.title)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Text(moment.rationale)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                // Transit note
+                if !moment.transitNote.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.right.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(moment.transitNote)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 2)
+                }
+
+                // Avoid note
+                if !moment.avoidNote.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                        Text(moment.avoidNote)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.orange.opacity(0.85))
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            .padding(.bottom, isLast ? 14 : 18)
         }
-        .contentMargins(.horizontal, 0)
+        .padding(.top, 14)
+    }
+}
+
+// MARK: - Hidden tab
+
+struct HiddenTabView: View {
+    let viewModel: OffpathViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("HIDDEN GEMS")
+                        .font(.system(size: 11, weight: .bold))
+                        .kerning(3)
+                        .foregroundStyle(.white.opacity(0.50))
+
+                    Text("Off the map")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.white)
+
+                    Text("The places most people walk past — chosen for you.")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.65))
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 60)
+                .padding(.bottom, 28)
+
+                VStack(spacing: 14) {
+                    ForEach(viewModel.displayHiddenPlaces) { place in
+                        HiddenPlaceCard(place: place)
+                            .padding(.horizontal, 16)
+                    }
+
+                    if !viewModel.hasFullAccess {
+                        UpgradeBanner(message: "Unlock all hidden spots with a Trip Pass") {
+                            viewModel.appPhase = .preview
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+                .padding(.bottom, 110)
+            }
+        }
         .scrollIndicators(.hidden)
     }
 }
 
-// MARK: - Itinerary
+// MARK: - Guide tab
 
-struct ItineraryScreen: View {
-    let days: [ItineraryDay]
-    let intro: String
+struct GuideTabView: View {
+    let viewModel: OffpathViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(intro)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("LOCAL GUIDE")
+                        .font(.system(size: 11, weight: .bold))
+                        .kerning(2.5)
+                        .foregroundStyle(.white.opacity(0.50))
+                    Text("Ask anything")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+                Spacer()
+                if !viewModel.hasFullAccess {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(viewModel.guideMessagesRemaining)")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text("free left")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.50))
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.white.opacity(0.10), in: .rect(cornerRadius: 14))
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 64)
+            .padding(.bottom, 16)
 
-            ForEach(days) { day in
-                GuideDayCard(day: day)
+            Divider().overlay(.white.opacity(0.10))
+
+            // Messages
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewModel.guideMessages) { message in
+                            GuideBubble(message: message)
+                                .id(message.id)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 24)
+                }
+                .onChange(of: viewModel.guideMessages.count) { _, _ in
+                    if let last = viewModel.guideMessages.last {
+                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                    }
+                }
+            }
+
+            // Input or upgrade
+            if !viewModel.canSendGuideMessage {
+                UpgradeBanner(message: "Unlock unlimited messages with a Trip Pass") {
+                    viewModel.appPhase = .preview
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 100)
+            } else {
+                GuideInputBar(viewModel: viewModel)
+                    .padding(.bottom, 90)
             }
         }
     }
 }
 
-// MARK: - Hidden Places
-
-struct HiddenPlacesScreen: View {
-    let hiddenPlaces: [HiddenPlace]
-    let hasFullAccess: Bool
-    let onUpgrade: () -> Void
+struct GuideInputBar: View {
+    let viewModel: OffpathViewModel
+    @State private var text: String = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Hidden Places")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+        HStack(spacing: 10) {
+            TextField("What's worth doing tonight?", text: $text)
+                .font(.system(size: 15))
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .background(.regularMaterial, in: .rect(cornerRadius: 22))
+                .onAppear {
+                    text = viewModel.draftGuideInput
+                }
+                .onChange(of: text) { _, new in
+                    viewModel.draftGuideInput = new
+                }
 
-            Text("These are the places that make the itinerary feel passed to you, not searched for.")
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.76))
-
-            ForEach(hiddenPlaces) { place in
-                HiddenPlaceCard(place: place)
+            Button {
+                guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                text = ""
+                Task { await viewModel.sendGuideMessage() }
+            } label: {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(.black)
+                    .frame(width: 46, height: 46)
+                    .background(.white, in: Circle())
             }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+    }
+}
 
-            if !hasFullAccess {
-                UpgradeBanner(message: "Unlock all hidden spots with a Trip Pass", action: onUpgrade)
+// MARK: - Shared: GuideBubble
+
+struct GuideBubble: View {
+    let message: GuideMessage
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            if message.role == "assistant" {
+                // Guide avatar
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [Color(red: 0.30, green: 0.60, blue: 0.95), Color(red: 0.20, green: 0.40, blue: 0.80)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 30, height: 30)
+                    .overlay {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white)
+                    }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Your guide")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text(message.text)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
+                .background(.regularMaterial, in: .rect(cornerRadius: 20, style: .continuous))
+
+                Spacer(minLength: 60)
+            } else {
+                Spacer(minLength: 60)
+                Text(message.text)
+                    .font(.system(size: 15))
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .background(.white.opacity(0.14), in: .rect(cornerRadius: 20, style: .continuous))
             }
         }
     }
 }
+
+// MARK: - Shared: HiddenPlaceCard
 
 struct HiddenPlaceCard: View {
     let place: HiddenPlace
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(place.name).font(.title3.weight(.bold))
-                    Text(place.neighborhood)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                    Text(place.name)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text(place.neighborhood)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
                 Spacer()
+
                 Text(place.vibe)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: 11, weight: .bold))
+                    .kerning(0.5)
+                    .foregroundStyle(.orange)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(.black.opacity(0.08), in: .capsule)
+                    .background(.orange.opacity(0.12), in: Capsule())
             }
 
-            Text(place.note).font(.body).foregroundStyle(.primary)
+            Text(place.note)
+                .font(.system(size: 14, weight: .regular))
+                .foregroundStyle(.primary.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
 
-            Label(place.bestTime, systemImage: "sparkles")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.orange)
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+                Text(place.bestTime)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.orange)
+            }
         }
         .padding(20)
         .background(
             LinearGradient(
-                colors: [.yellow.opacity(0.22), .orange.opacity(0.16), .white.opacity(0.7)],
+                colors: [.orange.opacity(0.10), .yellow.opacity(0.06), .clear],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
-            in: .rect(cornerRadius: 28)
+            in: .rect(cornerRadius: 22)
         )
-        .overlay { RoundedRectangle(cornerRadius: 28).strokeBorder(.white.opacity(0.24)) }
+        .background(.regularMaterial, in: .rect(cornerRadius: 22))
+        .overlay { RoundedRectangle(cornerRadius: 22).strokeBorder(.orange.opacity(0.20)) }
     }
 }
 
-// MARK: - Guide Chat
-
-struct GuideChatScreen: View {
-    let viewModel: OffpathViewModel
-
-    var body: some View {
-        @Bindable var vm = viewModel
-
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Local Guide")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(.white)
-                Spacer()
-                if !viewModel.hasFullAccess {
-                    Text("\(viewModel.guideMessagesRemaining) free message\(viewModel.guideMessagesRemaining == 1 ? "" : "s") left")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.white.opacity(0.15), in: .capsule)
-                }
-            }
-
-            VStack(spacing: 12) {
-                ForEach(viewModel.guideMessages) { message in
-                    GuideBubble(message: message)
-                }
-            }
-
-            if !viewModel.canSendGuideMessage {
-                UpgradeBanner(message: "Unlock unlimited guide messages with a Trip Pass") {
-                    viewModel.appPhase = .preview
-                }
-            } else {
-                HStack(spacing: 12) {
-                    TextField("Ask what matters here", text: $vm.draftGuideInput)
-                        .padding(.horizontal, 16)
-                        .frame(height: 52)
-                        .background(.regularMaterial, in: .rect(cornerRadius: 18))
-
-                    Button {
-                        Task { await viewModel.sendGuideMessage() }
-                    } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.headline.weight(.bold))
-                            .frame(width: 52, height: 52)
-                            .background(.white, in: .circle)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.black)
-                }
-            }
-        }
-    }
-}
-
-struct GuideBubble: View {
-    let message: GuideMessage
-
-    var body: some View {
-        HStack {
-            if message.role == "assistant" {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Offpath Local")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(message.text).font(.body)
-                }
-                .padding(16)
-                .background(.regularMaterial, in: .rect(cornerRadius: 22))
-                Spacer(minLength: 30)
-            } else {
-                Spacer(minLength: 30)
-                Text(message.text)
-                    .font(.body)
-                    .foregroundStyle(.white)
-                    .padding(16)
-                    .background(.black.opacity(0.8), in: .rect(cornerRadius: 22))
-            }
-        }
-    }
-}
-
-// MARK: - Upgrade banner
+// MARK: - Shared: UpgradeBanner
 
 struct UpgradeBanner: View {
     let message: String
@@ -267,18 +582,63 @@ struct UpgradeBanner: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: "lock.open.fill")
+                    .font(.title3)
                     .foregroundStyle(.orange)
                 Text(message)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
             .padding(18)
             .background(.regularMaterial, in: .rect(cornerRadius: 22))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - GuideDayCard (kept for PreviewUnlockView)
+
+struct GuideDayCard: View {
+    let day: ItineraryDay
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(day.title).font(.title3.weight(.bold))
+                    Text(day.mood)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(day.summary)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+
+            VStack(spacing: 10) {
+                ForEach(day.moments) { moment in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(moment.timeLabel)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Text(moment.title).font(.headline)
+                        Text(moment.rationale)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color(.secondarySystemBackground), in: .rect(cornerRadius: 16))
+                }
+            }
+        }
+        .padding(20)
+        .background(.regularMaterial, in: .rect(cornerRadius: 24))
     }
 }
 
