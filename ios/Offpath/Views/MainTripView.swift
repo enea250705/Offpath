@@ -128,7 +128,7 @@ struct OffpathTabBar: View {
         .shadow(color: .black.opacity(0.28), radius: 24, y: 8)
         .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
         .padding(.horizontal, 16)
-        .padding(.bottom, 4)
+        .padding(.bottom, 0)
     }
 
     @Namespace private var tabNamespace
