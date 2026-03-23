@@ -97,6 +97,17 @@ struct StoriesView: View {
                 }
                 .animation(.easeInOut(duration: 0.5), value: currentSlide)
 
+                // Tap zones (left / right to navigate)
+                HStack(spacing: 0) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { goToPrevious() }
+
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { goToNext() }
+                }
+
                 // Content
                 VStack(alignment: .leading, spacing: 0) {
                     // Progress bars
@@ -171,17 +182,6 @@ struct StoriesView: View {
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 80)
-                }
-
-                // Tap zones (left / right to navigate)
-                HStack(spacing: 0) {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { goToPrevious() }
-
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture { goToNext() }
                 }
 
                 // Skip button top-right
