@@ -77,13 +77,13 @@ struct OffpathTabBar: View {
                             Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
                                 .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
                                 .symbolEffect(.bounce.up.byLayer, value: isSelected)
-                                .foregroundStyle(isSelected ? .white : .white.opacity(0.40))
+                                .foregroundStyle(isSelected ? .black : .black.opacity(0.40))
                         }
                         .frame(width: 44, height: 30)
 
                         Text(tab.title)
                             .font(.system(size: 9.5, weight: isSelected ? .semibold : .regular))
-                            .foregroundStyle(isSelected ? .black : .white.opacity(0.40))
+                            .foregroundStyle(isSelected ? .black : .black.opacity(0.40))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -138,7 +138,7 @@ struct OffpathTabBar: View {
         .shadow(color: .black.opacity(0.28), radius: 24, y: 8)
         .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
         .padding(.horizontal, 16)
-        .padding(.bottom, 28)
+        .padding(.bottom, 12)
     }
 
     @Namespace private var tabNamespace
