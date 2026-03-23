@@ -11,6 +11,7 @@ struct TripGenerationView: View {
     @State private var loadingIndex: Int      = 0
     @State private var mapPosition: MapCameraPosition = .automatic
     @State private var pathPoints: [CLLocationCoordinate2D] = []
+    @State private var hasZoomedIn: Bool      = false
 
     private let loadingMessages = [
         "Reading the city like a local...",
@@ -330,7 +331,7 @@ struct TripGenerationView: View {
             }
         }
 
-        // Fly the plane
+        // Fly the plane + trigger destination zoom-in when ~85% done
         Task {
             for step in 0...120 {
                 let t = Double(step) / 120.0
@@ -340,6 +341,17 @@ struct TripGenerationView: View {
                     withAnimation(.linear(duration: 0.04)) {
                         progress      = eased
                         trailProgress = eased
+                    }
+
+                    // When plane is ~85% to destination, smoothly zoom into arrival city
+                    if eased >= 0.85 && !hasZoomedIn {
+                        hasZoomedIn = true
+                        withAnimation(.easeInOut(duration: 2.8)) {
+                            mapPosition = .region(MKCoordinateRegion(
+                                center: destinationCoord,
+                                span: MKCoordinateSpan(latitudeDelta: 0.06, longitudeDelta: 0.06)
+                            ))
+                        }
                     }
                 }
                 try? await Task.sleep(for: .milliseconds(55))
