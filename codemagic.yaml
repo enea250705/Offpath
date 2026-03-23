@@ -4,9 +4,6 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
 
-    integrations:
-      app_store_connect: Codemagic
-
     environment:
       ios_signing:
         distribution_type: app_store
@@ -15,28 +12,35 @@ workflows:
         XCODE_PROJECT: "ios/Offpath.xcodeproj"
         XCODE_SCHEME: "Offpath"
         BUNDLE_ID: "com.offpath.app"
-        APP_STORE_APPLE_ID: 6760982389 # Replace with your App Store app Apple ID after creating it in App Store Connect
+        APP_STORE_APPLE_ID: 6760982389
 
     scripts:
+      - name: Set Xcode version
+        script: |
+          sudo xcode-select -p
+
       - name: Install dependencies
         script: |
           cd ios
           xcodebuild -resolvePackageDependencies \
             -project Offpath.xcodeproj \
-            -scheme Offpath
+            -scheme Offpath \
+            -clonedSourcePackagesDirPath ../derived_data
 
       - name: Build and archive
         script: |
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+            --scheme "$XCODE_SCHEME" \
+            --config Release
 
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
 
     publishing:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
-        submit_to_app_store: false  # flip to true when ready for full release
+        submit_to_app_store: false
