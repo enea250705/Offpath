@@ -84,22 +84,18 @@ struct StoriesView: View {
                 // Background: Pexels photo if available, else gradient
                 ZStack {
                     if let photo = currentPhoto {
-                        GeometryReader { geo in
-                            AsyncImage(url: photo.largeURL) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: geo.size.width, height: geo.size.height)
-                                        .clipped()
-                                        .transition(.opacity)
-                                default:
-                                    gradientBackground(slide: slide)
-                                }
+                        AsyncImage(url: photo.largeURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .ignoresSafeArea()
+                                    .transition(.opacity)
+                            default:
+                                gradientBackground(slide: slide)
                             }
                         }
-                        .ignoresSafeArea()
                     } else {
                         gradientBackground(slide: slide)
                     }
@@ -130,6 +126,7 @@ struct StoriesView: View {
                 }
 
                 // Content
+                GeometryReader { screen in
                 VStack(alignment: .leading, spacing: 0) {
                     // Progress bars
                     HStack(spacing: 4) {
@@ -212,6 +209,8 @@ struct StoriesView: View {
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 80)
+                }
+                .frame(width: screen.size.width)
                 }
 
                 // Skip button top-right
