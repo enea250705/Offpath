@@ -15,7 +15,7 @@ workflows:
         XCODE_PROJECT: "ios/Offpath.xcodeproj"
         XCODE_SCHEME: "Offpath"
         BUNDLE_ID: "com.offpath.app"
-        APP_STORE_APPLE_ID: 1 # Replace with your App Store app Apple ID after creating it in App Store Connect
+        APP_STORE_APPLE_ID: 6760982389 # Replace with your App Store app Apple ID after creating it in App Store Connect
 
     scripts:
       - name: Install dependencies
