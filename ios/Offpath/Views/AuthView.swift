@@ -61,14 +61,14 @@ struct AuthView: View {
                 }
             }
             .signInWithAppleButtonStyle(.white)
-            .frame(width: 280, height: 52)
-            .clipShape(.rect(cornerRadius: 4))
+            .frame(height: 52)
+            .clipShape(Capsule())
 
             // MARK: Google Sign-In — official branded button
             GoogleSignInButton(label: "Continue with Google") {
                 Task { await viewModel.completeGoogleAuth() }
             }
-            .frame(width: 280, height: 52)
+            .frame(height: 52)
         }
         .frame(maxWidth: .infinity)
     }
