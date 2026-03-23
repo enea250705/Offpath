@@ -14,9 +14,7 @@ struct MainTripView: View {
                     case .itinerary:
                         ItineraryScreen(
                             days: viewModel.displayDays,
-                            intro: viewModel.plan?.intro ?? "",
-                            hasFullAccess: viewModel.hasFullAccess,
-                            onUpgrade: { viewModel.appPhase = .preview }
+                            intro: viewModel.plan?.intro ?? ""
                         )
                     case .hidden:
                         HiddenPlacesScreen(
@@ -94,8 +92,6 @@ struct MainTripView: View {
 struct ItineraryScreen: View {
     let days: [ItineraryDay]
     let intro: String
-    let hasFullAccess: Bool
-    let onUpgrade: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -105,10 +101,6 @@ struct ItineraryScreen: View {
 
             ForEach(days) { day in
                 GuideDayCard(day: day)
-            }
-
-            if !hasFullAccess {
-                UpgradeBanner(message: "Unlock all days with a Trip Pass", action: onUpgrade)
             }
         }
     }
@@ -190,9 +182,20 @@ struct GuideChatScreen: View {
         @Bindable var vm = viewModel
 
         VStack(alignment: .leading, spacing: 16) {
-            Text("Local Guide")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+            HStack {
+                Text("Local Guide")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.white)
+                Spacer()
+                if !viewModel.hasFullAccess {
+                    Text("\(viewModel.guideMessagesRemaining) free message\(viewModel.guideMessagesRemaining == 1 ? "" : "s") left")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(.white.opacity(0.15), in: .capsule)
+                }
+            }
 
             VStack(spacing: 12) {
                 ForEach(viewModel.guideMessages) { message in
@@ -200,22 +203,28 @@ struct GuideChatScreen: View {
                 }
             }
 
-            HStack(spacing: 12) {
-                TextField("Ask what matters here", text: $vm.draftGuideInput)
-                    .padding(.horizontal, 16)
-                    .frame(height: 52)
-                    .background(.regularMaterial, in: .rect(cornerRadius: 18))
-
-                Button {
-                    Task { await viewModel.sendGuideMessage() }
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.headline.weight(.bold))
-                        .frame(width: 52, height: 52)
-                        .background(.white, in: .circle)
+            if !viewModel.canSendGuideMessage {
+                UpgradeBanner(message: "Unlock unlimited guide messages with a Trip Pass") {
+                    viewModel.appPhase = .preview
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.black)
+            } else {
+                HStack(spacing: 12) {
+                    TextField("Ask what matters here", text: $vm.draftGuideInput)
+                        .padding(.horizontal, 16)
+                        .frame(height: 52)
+                        .background(.regularMaterial, in: .rect(cornerRadius: 18))
+
+                    Button {
+                        Task { await viewModel.sendGuideMessage() }
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.headline.weight(.bold))
+                            .frame(width: 52, height: 52)
+                            .background(.white, in: .circle)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.black)
+                }
             }
         }
     }

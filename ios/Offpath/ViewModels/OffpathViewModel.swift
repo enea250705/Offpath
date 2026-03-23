@@ -34,14 +34,28 @@ final class OffpathViewModel {
         purchaseService.hasFullAccess
     }
 
-    // Days shown depend on whether the user has paid
+    // Full itinerary is free for everyone
     var displayDays: [ItineraryDay] {
-        hasFullAccess ? (plan?.fullDays ?? []) : (plan?.previewDays ?? [])
+        plan?.fullDays ?? []
     }
 
+    // Hidden places: 2 free, all 4 with paid
     var displayHiddenPlaces: [HiddenPlace] {
         let all = plan?.hiddenPlaces ?? []
         return hasFullAccess ? all : Array(all.prefix(2))
+    }
+
+    // Guide chat: 3 messages free, unlimited with paid
+    var freeGuideMessagesUsed: Int {
+        guideMessages.filter { $0.role == "user" }.count
+    }
+
+    var canSendGuideMessage: Bool {
+        hasFullAccess || freeGuideMessagesUsed < 3
+    }
+
+    var guideMessagesRemaining: Int {
+        max(0, 3 - freeGuideMessagesUsed)
     }
 
     // MARK: - Init
@@ -259,6 +273,10 @@ final class OffpathViewModel {
     func sendGuideMessage() async {
         let trimmed = draftGuideInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let plan else { return }
+        guard canSendGuideMessage else {
+            errorMessage = "You've used your 3 free messages. Unlock unlimited with a Trip Pass."
+            return
+        }
         let userMessage = GuideMessage(role: "user", text: trimmed)
         guideMessages.append(userMessage)
         draftGuideInput = ""

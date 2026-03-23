@@ -68,7 +68,7 @@ struct PreviewUnlockView: View {
                 // Free — just auth, no purchase
                 TierRow(
                     title: "Free",
-                    detail: "Basic itinerary preview + a couple of hidden picks",
+                    detail: "Full itinerary + 2 hidden places + 3 guide messages",
                     isLoading: false
                 ) {
                     viewModel.showAuth()
