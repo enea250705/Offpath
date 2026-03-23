@@ -19,6 +19,7 @@ nonisolated struct GuideChatRequest: Codable, Sendable {
 final class TravelPlannerService {
     private let apiBaseURLString: String = Config.EXPO_PUBLIC_RORK_API_BASE_URL
     private let geocoder: CLGeocoder = CLGeocoder()
+    private let foursquare = FoursquareService()
 
     // Token is set after auth so the service can attach it to requests
     var authToken: String?
@@ -110,6 +111,20 @@ final class TravelPlannerService {
         let styleLine = answers.style?.rawValue ?? TravelStyle.culture.rawValue
         let groupLine = answers.group?.rawValue ?? TravelerGroup.couple.rawValue
 
+        // Fetch real places from Foursquare (silently falls back if key not set)
+        let fsqPlaces = await foursquare.destinationPlaces(near: coordinate.clCoordinate)
+
+        // Helper: pull next FSQ name or fall back to a generic title
+        var fsqIndex = 0
+        func nextPlace(fallback: String) -> String {
+            if fsqIndex < fsqPlaces.count {
+                let name = fsqPlaces[fsqIndex].name
+                fsqIndex += 1
+                return name
+            }
+            return fallback
+        }
+
         let fullDays: [ItineraryDay] = (1 ... max(answers.tripLength, 2)).map { index in
             ItineraryDay(
                 dayNumber: index,
@@ -119,7 +134,7 @@ final class TravelPlannerService {
                 moments: [
                     ItineraryMoment(
                         timeLabel: index == 1 ? "09:00" : "08:30",
-                        title: morningTitle(for: index, city: city),
+                        title: nextPlace(fallback: morningTitle(for: index, city: city)),
                         subtitle: "A polished start that makes the rest of the day flow naturally",
                         rationale: "This is when \(city) feels generous instead of crowded.",
                         transitNote: "Walk if you can.",
@@ -127,7 +142,7 @@ final class TravelPlannerService {
                     ),
                     ItineraryMoment(
                         timeLabel: "12:30",
-                        title: middayTitle(for: index, city: city),
+                        title: nextPlace(fallback: middayTitle(for: index, city: city)),
                         subtitle: "The signature moment, placed exactly when it works best",
                         rationale: "You are hitting this at the sweet spot — enough energy, not too much.",
                         transitNote: "Keep the route compact.",
@@ -135,7 +150,7 @@ final class TravelPlannerService {
                     ),
                     ItineraryMoment(
                         timeLabel: "18:45",
-                        title: eveningTitle(for: index, city: city),
+                        title: nextPlace(fallback: eveningTitle(for: index, city: city)),
                         subtitle: "A finish with texture, light, and local confidence",
                         rationale: "Evenings are where \(city) starts speaking in a lower voice.",
                         transitNote: "Arrive just before golden hour.",
@@ -145,11 +160,28 @@ final class TravelPlannerService {
             )
         }
 
+        // Hidden places — use FSQ names if available, else generic
         let hiddenPlaces: [HiddenPlace] = [
-            HiddenPlace(name: "Blue Hour Steps",    neighborhood: "Old Quarter",      vibe: "Quiet viewpoint",   note: "Not dramatic on first glance, which is exactly why it stays good.",            bestTime: "Just before sunset",  coordinate: coordinate),
-            HiddenPlace(name: "Marrow Café",        neighborhood: "Local backstreet", vibe: "Low-key favorite",  note: "The kind of café locals protect by not overexplaining it.",                   bestTime: "10:30–11:30",         coordinate: coordinate),
-            HiddenPlace(name: "Thread Market Lane", neighborhood: "Near the market",  vibe: "Texture and color", note: "You're here for the in-between moments: shopfronts and little exchanges.",    bestTime: "Early afternoon",     coordinate: coordinate),
-            HiddenPlace(name: "After-Rain Terrace", neighborhood: "Riverside edge",   vibe: "Underrated table",  note: "Go after a shower or on a windy day. It's prettier when slightly inconvenient.", bestTime: "Late afternoon",      coordinate: coordinate)
+            HiddenPlace(
+                name: nextPlace(fallback: "Blue Hour Steps"),
+                neighborhood: "Old Quarter", vibe: "Quiet viewpoint",
+                note: "Not dramatic on first glance, which is exactly why it stays good.",
+                bestTime: "Just before sunset", coordinate: coordinate),
+            HiddenPlace(
+                name: nextPlace(fallback: "Marrow Café"),
+                neighborhood: "Local backstreet", vibe: "Low-key favorite",
+                note: "The kind of café locals protect by not overexplaining it.",
+                bestTime: "10:30–11:30", coordinate: coordinate),
+            HiddenPlace(
+                name: nextPlace(fallback: "Thread Market Lane"),
+                neighborhood: "Near the market", vibe: "Texture and color",
+                note: "You're here for the in-between moments: shopfronts and little exchanges.",
+                bestTime: "Early afternoon", coordinate: coordinate),
+            HiddenPlace(
+                name: nextPlace(fallback: "After-Rain Terrace"),
+                neighborhood: "Riverside edge", vibe: "Underrated table",
+                note: "Go after a shower or on a windy day. It's prettier when slightly inconvenient.",
+                bestTime: "Late afternoon", coordinate: coordinate)
         ]
 
         return TripPlan(

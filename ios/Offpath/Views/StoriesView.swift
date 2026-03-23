@@ -7,7 +7,9 @@ struct StoriesView: View {
     @State private var progress: Double = 0
     @State private var timer: Timer?
     @State private var appear: Bool = false
+    @State private var photos: [PexelsPhoto] = []
 
+    private let pexels = PexelsService()
     private let slideDuration: Double = 3.5
 
     private var slides: [StorySlide] {
@@ -65,35 +67,50 @@ struct StoriesView: View {
         return result
     }
 
+    // Pexels photo for the current slide (nil = use gradient fallback)
+    private func photo(for index: Int) -> PexelsPhoto? {
+        guard index < photos.count else { return nil }
+        return photos[index]
+    }
+
     var body: some View {
         ZStack {
             if slides.isEmpty {
                 Color.black.ignoresSafeArea()
             } else {
                 let slide = slides[min(currentSlide, slides.count - 1)]
+                let currentPhoto = photo(for: currentSlide)
 
-                // Background gradient
-                LinearGradient(
-                    colors: slide.gradient,
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.5), value: currentSlide)
-
-                // Decorative background shapes
+                // Background: Pexels photo if available, else gradient
                 ZStack {
-                    Circle()
-                        .fill(slide.accent.opacity(0.08))
-                        .frame(width: 400, height: 400)
-                        .offset(x: 120, y: -180)
-                        .blur(radius: 60)
+                    if let photo = currentPhoto {
+                        AsyncImage(url: photo.largeURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .ignoresSafeArea()
+                                    .transition(.opacity)
+                            default:
+                                gradientBackground(slide: slide)
+                            }
+                        }
+                    } else {
+                        gradientBackground(slide: slide)
+                    }
 
-                    Circle()
-                        .fill(slide.accent.opacity(0.06))
-                        .frame(width: 300, height: 300)
-                        .offset(x: -100, y: 200)
-                        .blur(radius: 50)
+                    // Dark scrim so text is always readable over photos
+                    LinearGradient(
+                        colors: [
+                            .black.opacity(0.35),
+                            .black.opacity(0.10),
+                            .black.opacity(0.65)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
                 }
                 .animation(.easeInOut(duration: 0.5), value: currentSlide)
 
@@ -115,7 +132,7 @@ struct StoriesView: View {
                         ForEach(0..<slides.count, id: \.self) { i in
                             GeometryReader { geo in
                                 Capsule()
-                                    .fill(.white.opacity(0.25))
+                                    .fill(.white.opacity(0.30))
                                     .overlay(alignment: .leading) {
                                         Capsule()
                                             .fill(.white)
@@ -151,7 +168,7 @@ struct StoriesView: View {
 
                         Text(slide.body)
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(.white.opacity(0.85))
                             .lineLimit(4)
                             .fixedSize(horizontal: false, vertical: true)
                             .opacity(appear ? 1 : 0)
@@ -179,6 +196,15 @@ struct StoriesView: View {
                             .offset(y: appear ? 0 : 12)
                             .animation(.easeOut(duration: 0.55).delay(0.28), value: appear)
                         }
+
+                        // Photographer credit when showing a Pexels photo
+                        if let photo = currentPhoto {
+                            Text("Photo by \(photo.photographer) · Pexels")
+                                .font(.system(size: 10, weight: .regular))
+                                .foregroundStyle(.white.opacity(0.35))
+                                .opacity(appear ? 1 : 0)
+                                .animation(.easeOut(duration: 0.4).delay(0.4), value: appear)
+                        }
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 80)
@@ -194,10 +220,10 @@ struct StoriesView: View {
                         } label: {
                             Text("Skip")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white.opacity(0.6))
+                                .foregroundStyle(.white.opacity(0.7))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
-                                .background(.white.opacity(0.12), in: Capsule())
+                                .background(.white.opacity(0.15), in: Capsule())
                         }
                         .buttonStyle(.plain)
                     }
@@ -208,11 +234,49 @@ struct StoriesView: View {
             }
         }
         .ignoresSafeArea()
-        .onAppear { startSlide() }
+        .onAppear {
+            startSlide()
+            loadPhotos()
+        }
         .onDisappear { stopTimer() }
     }
 
-    // MARK: - Helpers
+    // MARK: - Gradient fallback background
+
+    private func gradientBackground(slide: StorySlide) -> some View {
+        ZStack {
+            LinearGradient(
+                colors: slide.gradient,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+
+            Circle()
+                .fill(slide.accent.opacity(0.08))
+                .frame(width: 400, height: 400)
+                .offset(x: 120, y: -180)
+                .blur(radius: 60)
+
+            Circle()
+                .fill(slide.accent.opacity(0.06))
+                .frame(width: 300, height: 300)
+                .offset(x: -100, y: 200)
+                .blur(radius: 50)
+        }
+    }
+
+    // MARK: - Pexels photo loading
+
+    private func loadPhotos() {
+        guard let city = viewModel.plan?.destinationCity, !city.isEmpty else { return }
+        Task {
+            let fetched = await pexels.photos(for: city, count: slides.count)
+            await MainActor.run { photos = fetched }
+        }
+    }
+
+    // MARK: - Timer helpers
 
     private func segmentFill(for index: Int) -> Double {
         if index < currentSlide { return 1.0 }
@@ -228,9 +292,7 @@ struct StoriesView: View {
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
             Task { @MainActor in
                 progress += 0.05
-                if progress >= slideDuration {
-                    goToNext()
-                }
+                if progress >= slideDuration { goToNext() }
             }
         }
     }
@@ -247,9 +309,7 @@ struct StoriesView: View {
 
     private func goToPrevious() {
         stopTimer()
-        if currentSlide > 0 {
-            currentSlide -= 1
-        }
+        if currentSlide > 0 { currentSlide -= 1 }
         startSlide()
     }
 
