@@ -5,10 +5,9 @@ const MODEL = 'llama-3.3-70b-versatile';
 
 // MARK: - Trip generation
 
-async function generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues }) {
-  // Build a venue context block if Foursquare data is available.
-  // This grounds Groq in real places instead of hallucinated ones.
-  const venueBlock = buildVenueBlock(venues);
+async function generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues, research }) {
+  const venueBlock    = buildVenueBlock(venues);
+  const researchBlock = buildResearchBlock(research);
 
   const prompt = `You are Offpath — a travel planner with exceptional taste. You write like a well-travelled local friend texting recommendations: warm, specific, opinionated, never generic.
 
@@ -17,7 +16,7 @@ Generate a complete trip plan as a JSON object for:
 - Travel style: ${travelStyle}
 - Traveler group: ${travelerGroup}
 - Trip length: ${tripLength} days
-${venueBlock}
+${venueBlock}${researchBlock}
 Return ONLY valid JSON matching this exact structure (no markdown, no commentary):
 {
   "destinationCity": "string — the city name only",
@@ -112,6 +111,21 @@ Use these actual places in the itinerary. Write about them as if you know them p
 ${lines.join('\n')}
 
 `;
+}
+
+// Formats Tavily research into a block the model can use to write
+// specific, accurate rationale for each real place.
+function buildResearchBlock(research) {
+  if (!research || research.length === 0) return '';
+
+  const lines = ['\nWEB RESEARCH ON THESE VENUES (use this to write the rationale):'];
+  research.forEach(r => {
+    lines.push(`\n"${r.venue}":`);
+    lines.push(`  ${r.summary}`);
+  });
+  lines.push('\n');
+
+  return lines.join('\n');
 }
 
 // MARK: - Guide chat

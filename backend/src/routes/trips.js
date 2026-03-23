@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { generateTrip } = require('../services/groq');
 const { getDestinationVenues } = require('../services/foursquare');
+const { researchVenues } = require('../services/tavily');
 const { pool } = require('../db');
 
 const router = express.Router();
@@ -17,12 +18,16 @@ router.post('/full', requireAuth, async (req, res) => {
   }
 
   try {
-    // Fetch real venues from Foursquare in parallel with nothing else —
-    // we need them before calling Groq so the prompt includes real place names.
+    // Step 1 — Foursquare: get real venue names for this city
     const venues = await getDestinationVenues(destination);
     venues.city = destination;
 
-    const plan = await generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues });
+    // Step 2 — Tavily: web-search the top venues to get real descriptions
+    // Runs after FSQ so we search actual venue names, not generic queries.
+    const research = await researchVenues(venues, destination);
+
+    // Step 3 — Groq: generate itinerary grounded in real places + real research
+    const plan = await generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues, research });
 
     // Persist the trip so the user can retrieve it later
     const result = await pool.query(
