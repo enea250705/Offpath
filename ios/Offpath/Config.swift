@@ -5,10 +5,10 @@ import Foundation
 // Leave empty to run entirely on mock data (works offline, safe for testing).
 enum Config {
     // Auth service base URL  e.g. "https://api.offpath.com"
-    static let authBaseURL: String = ""
+    static let authBaseURL: String = "https://offpath.onrender.com"
 
-    // Trip & guide API base URL  e.g. "https://api.offpath.com"
-    static let apiBaseURL: String = ""
+    // Trip & guide API base URL
+    static let apiBaseURL: String = "https://offpath.onrender.com"
 
     // MARK: - In-App Purchase Product IDs
     // Create these exact product IDs in App Store Connect → Your App → Monetization → In-App Purchases
