@@ -83,7 +83,7 @@ struct OffpathTabBar: View {
 
                         Text(tab.title)
                             .font(.system(size: 9.5, weight: isSelected ? .semibold : .regular))
-                            .foregroundStyle(isSelected ? .white : .white.opacity(0.38))
+                            .foregroundStyle(isSelected ? .black : .white.opacity(0.40))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)

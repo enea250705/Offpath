@@ -162,8 +162,10 @@ struct AccountTabView: View {
         let name = viewModel.currentUser?.displayName ?? "T"
         let parts = name.split(separator: " ")
         if parts.count >= 2 {
-            return String((parts[0].first ?? "T")) + String((parts[1].first ?? ""))
-        }
+
+            let first = parts[0].first.map(String.init) ?? ""
+            let second = parts[1].first.map(String.init) ?? ""
+            return (first + second).uppercased()        }
         return String(name.prefix(2)).uppercased()
     }
 }

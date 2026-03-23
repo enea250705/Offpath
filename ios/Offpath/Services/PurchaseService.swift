@@ -29,9 +29,11 @@ final class PurchaseService {
     }
 
     deinit {
-        updatesTask?.cancel()
+        Task { @MainActor in
+            updatesTask?.cancel()
+        }
     }
-
+    
     // MARK: - Load products from App Store
     func loadProducts() async {
         do {
