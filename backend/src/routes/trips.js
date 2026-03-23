@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { generateTrip } = require('../services/groq');
+const { getDestinationVenues } = require('../services/foursquare');
 const { pool } = require('../db');
 
 const router = express.Router();
@@ -16,7 +17,12 @@ router.post('/full', requireAuth, async (req, res) => {
   }
 
   try {
-    const plan = await generateTrip({ destination, travelStyle, travelerGroup, tripLength });
+    // Fetch real venues from Foursquare in parallel with nothing else —
+    // we need them before calling Groq so the prompt includes real place names.
+    const venues = await getDestinationVenues(destination);
+    venues.city = destination;
+
+    const plan = await generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues });
 
     // Persist the trip so the user can retrieve it later
     const result = await pool.query(

@@ -12,6 +12,8 @@ services:
         value: production
       - key: GROQ_API_KEY
         sync: false
+      - key: FOURSQUARE_API_KEY
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: APPLE_CLIENT_ID
