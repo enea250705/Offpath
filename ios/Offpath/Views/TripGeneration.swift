@@ -251,21 +251,25 @@ struct TripGenerationView: View {
         resolvedDestination ?? originCoord
     }
 
-    // Geocode the destination city string using CLGeocoder so any city works,
-    // not just the hardcoded 17. Appending ", city" biases toward city results.
+    // Geocode the destination city string using CLGeocoder so any city works.
+    // IMPORTANT: set resolvedDestination synchronously before resuming the
+    // continuation — buildPath() reads it immediately after this returns.
     private func resolveDestinationCoordinate() async {
         let query = viewModel.answers.destination.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
 
-        return await withCheckedContinuation { continuation in
-            CLGeocoder().geocodeAddressString("\(query), city") { placemarks, _ in
-                if let coord = placemarks?.first?.location?.coordinate {
-                    Task { @MainActor in
-                        self.resolvedDestination = coord
-                    }
-                }
-                continuation.resume()
+        // Return the coordinate from the continuation so we can assign it
+        // on the caller (MainActor) before buildPath() reads destinationCoord.
+        let coord: CLLocationCoordinate2D? = await withCheckedContinuation { continuation in
+            CLGeocoder().geocodeAddressString(query) { placemarks, _ in
+                // Pick the most-populated locality result when available
+                let best = placemarks?.first(where: { $0.locality != nil }) ?? placemarks?.first
+                continuation.resume(returning: best?.location?.coordinate)
             }
+        }
+
+        if let coord {
+            resolvedDestination = coord
         }
     }
 
