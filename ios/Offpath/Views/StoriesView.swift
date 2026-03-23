@@ -84,18 +84,22 @@ struct StoriesView: View {
                 // Background: Pexels photo if available, else gradient
                 ZStack {
                     if let photo = currentPhoto {
-                        AsyncImage(url: photo.largeURL) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                                    .ignoresSafeArea()
-                                    .transition(.opacity)
-                            default:
-                                gradientBackground(slide: slide)
+                        GeometryReader { geo in
+                            AsyncImage(url: photo.largeURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: geo.size.width, height: geo.size.height)
+                                        .clipped()
+                                        .transition(.opacity)
+                                default:
+                                    gradientBackground(slide: slide)
+                                }
                             }
                         }
+                        .ignoresSafeArea()
                     } else {
                         gradientBackground(slide: slide)
                     }
