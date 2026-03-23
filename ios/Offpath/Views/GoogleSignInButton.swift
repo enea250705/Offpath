@@ -1,7 +1,7 @@
 import SwiftUI
 
 // MARK: - Official Google Sign-In button
-// Matches the provided screenshot: Logo on the left, text centered.
+// Matches Google's branding guidelines exactly.
 
 struct GoogleSignInButton: View {
     let label: String
@@ -9,48 +9,36 @@ struct GoogleSignInButton: View {
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                // Background Layer
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white)
-                    .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 1)
-                
-                // Border Layer
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color(white: 0.92), lineWidth: 1)
-                
-                // Content Layer
-                HStack {
+            HStack(spacing: 0) {
+                // Google G logo box
+                ZStack {
+                    Color.white
                     GoogleGLogo()
-                        .frame(width: 22, height: 22)
-                        .padding(.leading, 12)
-                    
-                    Spacer()
+                        .frame(width: 20, height: 20)
                 }
-                
-                // Centered Text
+                .frame(width: 52, height: 52)
+
+                // Divider
+                Color(red: 0.86, green: 0.86, blue: 0.86)
+                    .frame(width: 1, height: 52)
+
+                // Label
                 Text(label)
-                    .font(.system(size: 16, weight: .bold, design: .default))
-                    .foregroundStyle(.black)
+                    .font(.system(size: 16, weight: .medium, design: .default))
+                    .foregroundStyle(Color(red: 0.25, green: 0.25, blue: 0.25))
+                    .frame(maxWidth: .infinity)
+
             }
-            .frame(maxWidth: .infinity)
             .frame(height: 52)
+            .background(Color.white)
+            .clipShape(.rect(cornerRadius: 4))
+            .shadow(color: .black.opacity(0.18), radius: 2, x: 0, y: 1)
         }
-        .buttonStyle(GoogleButtonStyle())
+        .buttonStyle(.plain)
     }
 }
 
-// MARK: - Custom Button Style for press effect
-struct GoogleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .opacity(configuration.isPressed ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
-    }
-}
-
-// MARK: - Refined Google G logo
+// MARK: - Google G logo drawn in SwiftUI
 private struct GoogleGLogo: View {
     var body: some View {
         Canvas { ctx, size in
@@ -60,42 +48,50 @@ private struct GoogleGLogo: View {
             let cy = h / 2
             let r  = min(w, h) / 2
 
-            // Colors from official branding
-            let blue   = Color(red: 66/255, green: 133/255, blue: 244/255)
-            let green  = Color(red: 52/255, green: 168/255, blue: 83/255)
-            let yellow = Color(red: 251/255, green: 188/255, blue: 5/255)
-            let red    = Color(red: 234/255, green: 67/255, blue: 53/255)
+            // Blue arc (top-right, bottom-right)
+            drawArc(ctx: ctx, cx: cx, cy: cy, r: r,
+                    from: -14, to: 90, color: Color(red: 0.259, green: 0.522, blue: 0.957))
 
-            // Red (top)
-            ctx.fill(arc(cx, cy, r, -190, -320), with: .color(red))
-            
-            // Yellow (bottom-left)
-            ctx.fill(arc(cx, cy, r, -135, -195), with: .color(yellow))
-            
-            // Green (bottom)
-            ctx.fill(arc(cx, cy, r, -15, -145), with: .color(green))
-            
-            // Blue (right + crossbar)
-            ctx.fill(arc(cx, cy, r, 45, -20), with: .color(blue))
-            
-            // Crossbar
-            var bar = Path()
-            bar.addRect(CGRect(x: cx, y: cy - r*0.2, width: r, height: r*0.4))
-            ctx.fill(bar, with: .color(blue))
-            
-            // Inner cutout (white)
-            var cutout = Path()
-            cutout.addEllipse(in: CGRect(x: cx - r*0.6, y: cy - r*0.6, width: r*1.2, height: r*1.2))
-            ctx.blendMode = .clear
-            ctx.fill(cutout, with: .color(.white))
+            // Red arc (top)
+            drawArc(ctx: ctx, cx: cx, cy: cy, r: r,
+                    from: 90, to: 196, color: Color(red: 0.918, green: 0.263, blue: 0.208))
+
+            // Yellow arc (left)
+            drawArc(ctx: ctx, cx: cx, cy: cy, r: r,
+                    from: 196, to: 256, color: Color(red: 0.984, green: 0.737, blue: 0.020))
+
+            // Green arc (bottom)
+            drawArc(ctx: ctx, cx: cx, cy: cy, r: r,
+                    from: 256, to: 346, color: Color(red: 0.204, green: 0.659, blue: 0.325))
+
+            // White center circle
+            var circlePath = Path()
+            circlePath.addEllipse(in: CGRect(x: cx - r * 0.58, y: cy - r * 0.58,
+                                             width: r * 1.16, height: r * 1.16))
+            ctx.fill(circlePath, with: .color(.white))
+
+            // Blue horizontal bar (the crossbar of the G)
+            let barH = r * 0.28
+            let barY = cy - barH / 2
+            var barPath = Path()
+            barPath.addRoundedRect(
+                in: CGRect(x: cx - r * 0.08, y: barY, width: r * 1.08, height: barH),
+                cornerSize: CGSize(width: 2, height: 2)
+            )
+            ctx.fill(barPath, with: .color(Color(red: 0.259, green: 0.522, blue: 0.957)))
         }
     }
 
-    private func arc(_ x: CGFloat, _ y: CGFloat, _ r: CGFloat, _ start: Double, _ end: Double) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: x, y: y))
-        p.addArc(center: CGPoint(x: x, y: y), radius: r, startAngle: .degrees(start), endAngle: .degrees(end), clockwise: true)
-        p.closeSubpath()
-        return p
+    private func drawArc(ctx: GraphicsContext, cx: CGFloat, cy: CGFloat, r: CGFloat,
+                         from startDeg: Double, to endDeg: Double, color: Color) {
+        var path = Path()
+        path.move(to: CGPoint(x: cx, y: cy))
+        path.addArc(center: CGPoint(x: cx, y: cy),
+                    radius: r,
+                    startAngle: .degrees(startDeg),
+                    endAngle: .degrees(endDeg),
+                    clockwise: false)
+        path.closeSubpath()
+        ctx.fill(path, with: .color(color))
     }
 }
