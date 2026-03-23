@@ -102,8 +102,11 @@ final class TravelPlannerService {
         let suggestion = suggestion(for: answers.style ?? .culture)
         let resolvedDestination = answers.destination.trimmingCharacters(in: .whitespacesAndNewlines)
         let city = resolvedDestination.isEmpty ? suggestion.city : resolvedDestination
-        let coordinate = await destinationCoordinate(for: city, fallback: suggestion.coordinate)
-        let country = resolvedDestination.isEmpty ? suggestion.country : inferredCountry(for: city, fallback: suggestion.country)
+        let (coordinate, country) = await geocodeCity(
+            city,
+            fallbackCoord: suggestion.coordinate,
+            fallbackCountry: suggestion.country
+        )
         let styleLine = answers.style?.rawValue ?? TravelStyle.culture.rawValue
         let groupLine = answers.group?.rawValue ?? TravelerGroup.couple.rawValue
 
@@ -162,24 +165,19 @@ final class TravelPlannerService {
         )
     }
 
-    private func destinationCoordinate(for city: String, fallback: LocationCoordinate) async -> LocationCoordinate {
-        guard !city.isEmpty else { return fallback }
+    // Geocode the city name once and return both coordinate and country.
+    private func geocodeCity(_ city: String, fallbackCoord: LocationCoordinate, fallbackCountry: String) async -> (LocationCoordinate, String) {
+        guard !city.isEmpty else { return (fallbackCoord, fallbackCountry) }
         do {
             let placemarks = try await geocoder.geocodeAddressString(city)
-            if let c = placemarks.first?.location?.coordinate {
-                return LocationCoordinate(latitude: c.latitude, longitude: c.longitude)
+            let best = placemarks.first(where: { $0.country != nil }) ?? placemarks.first
+            let coord = best?.location?.coordinate
+            let country = best?.country ?? fallbackCountry
+            if let coord {
+                return (LocationCoordinate(latitude: coord.latitude, longitude: coord.longitude), country)
             }
         } catch {}
-        return fallback
-    }
-
-    private func inferredCountry(for city: String, fallback: String) -> String {
-        let l = city.lowercased()
-        if l.contains("lisbon")      { return "Portugal" }
-        if l.contains("kyoto")       { return "Japan" }
-        if l.contains("mexico city") { return "Mexico" }
-        if l.contains("istanbul")    { return "Turkey" }
-        return fallback
+        return (fallbackCoord, fallbackCountry)
     }
 
     private func suggestion(for style: TravelStyle) -> DestinationSuggestion {
