@@ -34,6 +34,7 @@ struct MainTripView: View {
 
 struct OffpathTabBar: View {
     let viewModel: OffpathViewModel
+    private let charcoal = Color(white: 0.12)
 
     private var visibleTabs: [TripTab] {
         return [.itinerary, .hidden, .guide, .map, .account]
@@ -53,26 +54,26 @@ struct OffpathTabBar: View {
                             // Selected pill background
                             if isSelected {
                                 Capsule()
-                                    .fill(.white.opacity(0.18))
+                                    .fill(.black.opacity(0.06))
                                     .frame(width: 44, height: 30)
                                     .overlay {
                                         Capsule()
-                                            .strokeBorder(.white.opacity(0.35), lineWidth: 0.5)
+                                            .strokeBorder(charcoal.opacity(0.15), lineWidth: 0.5)
                                     }
-                                    .shadow(color: .white.opacity(0.12), radius: 6, y: 2)
+                                    .shadow(color: .black.opacity(0.05), radius: 6, y: 2)
                                     .matchedGeometryEffect(id: "tabPill", in: tabNamespace)
                             }
 
                             Image(systemName: isSelected ? tab.selectedSymbol : tab.symbol)
                                 .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
                                 .symbolEffect(.bounce.up.byLayer, value: isSelected)
-                                .foregroundStyle(isSelected ? .black : .black.opacity(0.40))
+                                .foregroundStyle(isSelected ? charcoal : charcoal.opacity(0.35))
                         }
                         .frame(width: 44, height: 30)
 
                         Text(tab.title)
                             .font(.system(size: 9.5, weight: isSelected ? .semibold : .regular))
-                            .foregroundStyle(isSelected ? .black : .black.opacity(0.40))
+                            .foregroundStyle(isSelected ? charcoal : charcoal.opacity(0.35))
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -94,8 +95,8 @@ struct OffpathTabBar: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                .white.opacity(0.10),
-                                .white.opacity(0.04),
+                                .white.opacity(0.18),
+                                .white.opacity(0.08),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -116,7 +117,7 @@ struct OffpathTabBar: View {
                 RoundedRectangle(cornerRadius: 34, style: .continuous)
                     .strokeBorder(
                         LinearGradient(
-                            colors: [.white.opacity(0.38), .white.opacity(0.08)],
+                            colors: [.white.opacity(0.25), .white.opacity(0.10)],
                             startPoint: .top,
                             endPoint: .bottom
                         ),
