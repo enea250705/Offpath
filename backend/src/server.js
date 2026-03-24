@@ -20,7 +20,7 @@ app.get('/diag/foursquare', async (req, res) => {
   const key = process.env.FOURSQUARE_API_KEY || '';
   if (!key) return res.json({ error: 'FOURSQUARE_API_KEY is not set', keyPresent: false });
 
-  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json' };
+  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json', 'X-Places-Api-Version': '2025-06-17' };
 
   // Test 1: full search with categories + fields
   const params = new URLSearchParams({ near: city, categories: '13065', limit: '3', fields: 'name,location,geocodes' });
