@@ -299,16 +299,15 @@ struct MomentRow: View {
                 if !isFirst {
                     Rectangle()
                         .fill(accentColor.opacity(0.20))
-                        .frame(width: 1.5, height: 14)
+                        .frame(width: 1.5, height: 20)
                 } else {
                     Color.clear
-                        .frame(width: 1.5, height: 14)
+                        .frame(width: 1.5, height: 20)
                 }
 
                 Circle()
                     .fill(accentColor)
                     .frame(width: 8, height: 8)
-                    .padding(.top, 6)
 
                 if !isLast {
                     Rectangle()
