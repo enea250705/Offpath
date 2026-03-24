@@ -145,37 +145,82 @@ final class TravelPlannerService {
         }
 
         let fullDays: [ItineraryDay] = (1 ... max(answers.tripLength, 2)).map { index in
-            ItineraryDay(
+            let isFirst = index == 1
+            let isLast  = index == answers.tripLength
+
+            let mood: String
+            if isFirst {
+                mood = ["First impressions", "Arriving curious", "Touching down easy", "Slow arrival"].randomElement()!
+            } else if isLast {
+                mood = ["Last look", "Final sweep", "The slow goodbye", "Making it count"].randomElement()!
+            } else {
+                mood = ["Deep dive", "Full immersion", "Finding the rhythm", "Going further in", "Momentum day"].randomElement()!
+            }
+
+            let summaries = [
+                "Built for \(groupLine.lowercased()) travelers who want \(styleLine.lowercased()).",
+                "A \(styleLine.lowercased()) day shaped around \(groupLine.lowercased()) pacing.",
+                "\(groupLine) energy, \(styleLine.lowercased()) sensibility — the mix that works.",
+                "Paced for \(groupLine.lowercased()) travelers who know the difference.",
+            ]
+
+            return ItineraryDay(
                 dayNumber: index,
-                title: "Day \(index)",
-                mood: index == 1 ? "Soft landing" : index == answers.tripLength ? "Last look" : "Momentum day",
-                summary: "Built for \(groupLine.lowercased()) travelers who like \(styleLine.lowercased()).",
+                title: morningTitle(for: index, city: city),
+                mood: mood,
+                summary: summaries.randomElement()!,
                 moments: [
                     ItineraryMoment(
-                        timeLabel: index == 1 ? "09:00" : "08:30",
+                        timeLabel: isFirst ? "09:00" : "08:30",
                         title: nextPlace(fallback: morningTitle(for: index, city: city)),
-                        subtitle: "A polished start that makes the rest of the day flow naturally",
-                        rationale: "This is when \(city) feels generous instead of crowded.",
-                        transitNote: "Walk if you can.",
-                        avoidNote: "Skip the obvious breakfast near the main square.",
+                        subtitle: [
+                            "A polished start that makes the rest of the day flow naturally",
+                            "The kind of morning that sets the whole trip's tone",
+                            "Early and unhurried — the city at its most honest",
+                            "Before the crowds decide the pace for you",
+                        ].randomElement()!,
+                        rationale: [
+                            "This is when \(city) feels generous instead of crowded.",
+                            "Before noon, the city belongs to the people who live in it.",
+                            "Morning light here is different — softer and less performed.",
+                            "\(city) rewards early risers with a version of itself most visitors never see.",
+                        ].randomElement()!,
+                        transitNote: ["Walk if you can.", "Ten minutes on foot from most starting points.", "The walk itself is half the experience."].randomElement()!,
+                        avoidNote: ["Skip the obvious breakfast near the main square.", "Don't order the tourist menu.", "Avoid the hotel breakfast — there's better a few streets over."].randomElement()!,
                         coordinate: coordinate
                     ),
                     ItineraryMoment(
                         timeLabel: "12:30",
                         title: nextPlace(fallback: middayTitle(for: index, city: city)),
-                        subtitle: "The signature moment, placed exactly when it works best",
-                        rationale: "You are hitting this at the sweet spot — enough energy, not too much.",
-                        transitNote: "Keep the route compact.",
-                        avoidNote: "Don't overbook lunch.",
+                        subtitle: [
+                            "The signature moment, placed exactly when it works best",
+                            "A midday anchor that earns the afternoon",
+                            "High point of the day — timed right on purpose",
+                        ].randomElement()!,
+                        rationale: [
+                            "You are hitting this at the sweet spot — enough energy, not too much.",
+                            "Midday is when this place runs at full capacity without feeling like a show.",
+                            "The light and foot traffic align at this hour. Worth it.",
+                        ].randomElement()!,
+                        transitNote: ["Keep the route compact.", "A short walk or one metro stop.", "On foot if the weather holds."].randomElement()!,
+                        avoidNote: ["Don't overbook lunch.", "Skip the set menu near the landmark.", "Avoid peak hour — shift by 30 minutes if you can."].randomElement()!,
                         coordinate: coordinate
                     ),
                     ItineraryMoment(
                         timeLabel: "18:45",
                         title: nextPlace(fallback: eveningTitle(for: index, city: city)),
-                        subtitle: "A finish with texture, light, and local confidence",
-                        rationale: "Evenings are where \(city) starts speaking in a lower voice.",
-                        transitNote: "Arrive just before golden hour.",
-                        avoidNote: "Avoid the first rooftop everyone tags.",
+                        subtitle: [
+                            "A finish with texture, light, and local confidence",
+                            "The day earns its ending here",
+                            "How you close a day in a city that knows how to do it",
+                        ].randomElement()!,
+                        rationale: [
+                            "Evenings are where \(city) starts speaking in a lower voice.",
+                            "The shift from afternoon to evening is when \(city) gets interesting.",
+                            "After 6pm, the tourist layer peels back and the real city shows up.",
+                        ].randomElement()!,
+                        transitNote: ["Arrive just before golden hour.", "Walk the last stretch — the light changes as you move.", "Go slowly. Evenings here aren't meant to be rushed."].randomElement()!,
+                        avoidNote: ["Avoid the first rooftop everyone tags.", "Skip the restaurant nearest the main attraction.", "Don't rush — evenings here aren't supposed to be efficient."].randomElement()!,
                         coordinate: coordinate
                     )
                 ]
@@ -183,34 +228,56 @@ final class TravelPlannerService {
         }
 
         // Hidden places — use FSQ names if available, else generic
-        let hiddenPlaces: [HiddenPlace] = [
+        let hiddenVibes: [[String]] = [
+            ["Quiet viewpoint", "Neighborhood anchor", "Off the feed", "Locals only"],
+            ["Low-key favorite", "Worth the detour", "Hidden in plain sight", "Unhurried stop"],
+            ["Texture and color", "Market energy", "Real city stuff", "Slow afternoon"],
+            ["Underrated table", "No-caption moment", "Best kept secret", "Good timing spot"],
+        ]
+        let hiddenNotes: [[String]] = [
+            ["Not dramatic on first glance, which is exactly why it stays good.", "Most people walk past it. That's the point.", "The appeal here is consistency — it doesn't try."],
+            ["The kind of café locals protect by not overexplaining it.", "Find it once and you'll feel territorial about it forever.", "No sign outside is usually a good sign."],
+            ["You're here for the in-between moments: shopfronts and little exchanges.", "The texture matters more than the transaction.", "Wander slowly — the details are the thing."],
+            ["Go after a shower or on a windy day. It's prettier when slightly inconvenient.", "The best version of this place is slightly off-season.", "Late afternoon, when the light gets interesting."],
+        ]
+        let hiddenTimes: [[String]] = [
+            ["Just before sunset", "Golden hour", "After 5pm", "Late afternoon light"],
+            ["10:30–11:30", "Morning, before 11", "First thing", "Early, before it fills"],
+            ["Early afternoon", "Right after lunch", "13:00–15:00", "Quiet afternoon"],
+            ["Late afternoon", "Around 4pm", "After the lunch crowd", "When the rush slows"],
+        ]
+        let hiddenNames  = ["Blue Hour Steps", "Marrow Café", "Thread Market Lane", "After-Rain Terrace"]
+        let hiddenHoods  = ["Old Quarter", "Local backstreet", "Near the market", "Riverside edge"]
+
+        let hiddenPlaces: [HiddenPlace] = (0..<4).map { i in
             HiddenPlace(
-                name: nextPlace(fallback: "Blue Hour Steps"),
-                neighborhood: "Old Quarter", vibe: "Quiet viewpoint",
-                note: "Not dramatic on first glance, which is exactly why it stays good.",
-                bestTime: "Just before sunset", coordinate: coordinate),
-            HiddenPlace(
-                name: nextPlace(fallback: "Marrow Café"),
-                neighborhood: "Local backstreet", vibe: "Low-key favorite",
-                note: "The kind of café locals protect by not overexplaining it.",
-                bestTime: "10:30–11:30", coordinate: coordinate),
-            HiddenPlace(
-                name: nextPlace(fallback: "Thread Market Lane"),
-                neighborhood: "Near the market", vibe: "Texture and color",
-                note: "You're here for the in-between moments: shopfronts and little exchanges.",
-                bestTime: "Early afternoon", coordinate: coordinate),
-            HiddenPlace(
-                name: nextPlace(fallback: "After-Rain Terrace"),
-                neighborhood: "Riverside edge", vibe: "Underrated table",
-                note: "Go after a shower or on a windy day. It's prettier when slightly inconvenient.",
-                bestTime: "Late afternoon", coordinate: coordinate)
+                name: nextPlace(fallback: hiddenNames[i]),
+                neighborhood: hiddenHoods[i],
+                vibe: hiddenVibes[i].randomElement()!,
+                note: hiddenNotes[i].randomElement()!,
+                bestTime: hiddenTimes[i].randomElement()!,
+                coordinate: coordinate
+            )
+        }
+
+        let intros = [
+            "\(city) for \(groupLine.lowercased()) travelers, planned with a local brain.",
+            "\(city) done right — paced for \(groupLine.lowercased()), with the edges left in.",
+            "A \(groupLine.lowercased()) trip to \(city) with the kind of detail most guides skip.",
+            "\(city) at \(styleLine.lowercased()) pace. Everything in the right order.",
+        ]
+        let shareLines = [
+            "This \(city) plan looks like someone with taste made it for me.",
+            "Someone actually thought about \(city) properly for once.",
+            "Finally a \(city) trip that doesn't read like a travel blog.",
+            "This is the \(city) trip I've been trying to build myself for years.",
         ]
 
         return TripPlan(
             destinationCity: city,
             destinationCountry: country,
-            intro: "\(city) for \(groupLine.lowercased()) travelers, planned with a local brain.",
-            shareLine: "This \(city) plan looks like someone with taste made it for me.",
+            intro: intros.randomElement()!,
+            shareLine: shareLines.randomElement()!,
             previewDays: Array(fullDays.prefix(1)),
             fullDays: fullDays,
             hiddenPlaces: hiddenPlaces,
