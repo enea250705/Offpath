@@ -37,7 +37,7 @@ async function getPlaces(cityName, categoryId, limit = 15) {
       `https://api.foursquare.com/v3/places/search?${params}`,
       {
         headers: {
-          Authorization: FSQ_KEY,
+          Authorization: `Bearer ${FSQ_KEY}`,
           Accept:        'application/json',
         },
         signal: AbortSignal.timeout(6000),
