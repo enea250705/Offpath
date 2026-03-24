@@ -34,13 +34,32 @@ final class TravelPlannerService {
 
     // MARK: - Guide chat
     func reply(to prompt: String, plan: TripPlan, history: [GuideMessage] = []) async -> GuideMessage {
-        if let remoteReply = try? await fetchRemoteReply(prompt: prompt, destination: plan.destinationCity, history: history) {
+        if let remoteReply = try? await fetchRemoteReply(prompt: prompt, destination: plan.destinationCity, tripId: plan.id, history: history) {
             return remoteReply
         }
 
         try? await Task.sleep(for: .milliseconds(300))
         let text = "If you have ten extra minutes here, slow down and look past the obvious façade. In \(plan.destinationCity), the best details are usually a little off-center: the tiled doorway, the older regulars at the counter, the view that opens only once you step two streets farther than most people do. Right now, I'd notice the textures, order something local instead of familiar, and avoid the busiest photo angle unless you want to queue for it."
         return GuideMessage(role: "assistant", text: text)
+    }
+
+    // MARK: - Load saved guide messages from backend
+    func loadGuideMessages(tripId: String) async -> [GuideMessage]? {
+        guard let url = URL(string: "/v1/guide/messages/\(tripId)", relativeTo: URL(string: apiBaseURLString)),
+              !apiBaseURLString.isEmpty else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse,
+              200 ..< 300 ~= http.statusCode else { return nil }
+
+        return try? JSONDecoder().decode([GuideMessage].self, from: data)
     }
 
     // MARK: - Private — remote
@@ -74,13 +93,13 @@ final class TravelPlannerService {
         return try JSONDecoder().decode(TripPlan.self, from: data)
     }
 
-    private func fetchRemoteReply(prompt: String, destination: String, history: [GuideMessage]) async throws -> GuideMessage {
+    private func fetchRemoteReply(prompt: String, destination: String, tripId: String? = nil, history: [GuideMessage]) async throws -> GuideMessage {
         guard let url = URL(string: "/v1/guide/chat", relativeTo: URL(string: apiBaseURLString)),
               !apiBaseURLString.isEmpty else {
             throw URLError(.badURL)
         }
 
-        let payload = GuideChatRequest(destination: destination, message: prompt, history: history, tripId: nil)
+        let payload = GuideChatRequest(destination: destination, message: prompt, history: history, tripId: tripId)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

@@ -87,8 +87,17 @@ final class OffpathViewModel {
             plannerService.authToken = user.token
             if let savedPlan = loadPersistedPlan() {
                 plan = savedPlan
-                if let savedMessages = loadPersistedGuideMessages() {
-                    guideMessages = savedMessages
+                // Load messages: try server first, fall back to local
+                if let localMessages = loadPersistedGuideMessages(), !localMessages.isEmpty {
+                    guideMessages = localMessages
+                }
+                Task {
+                    if let tripId = savedPlan.id,
+                       let serverMessages = await plannerService.loadGuideMessages(tripId: tripId),
+                       !serverMessages.isEmpty {
+                        guideMessages = serverMessages
+                        persistGuideMessages()
+                    }
                 }
                 appPhase = .trip
             } else {

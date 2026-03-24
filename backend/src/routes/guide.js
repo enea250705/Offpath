@@ -35,4 +35,22 @@ router.post('/chat', requireAuth, async (req, res) => {
   }
 });
 
+// GET /v1/guide/messages/:tripId
+// Auth: Bearer token (required)
+router.get('/messages/:tripId', requireAuth, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, role, text, created_at AS "timestamp"
+       FROM guide_messages
+       WHERE trip_id = $1 AND user_id = $2
+       ORDER BY created_at ASC`,
+      [req.params.tripId, req.user.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[guide/messages]', err);
+    res.status(500).json({ error: 'Could not load messages' });
+  }
+});
+
 module.exports = router;

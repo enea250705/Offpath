@@ -179,6 +179,7 @@ nonisolated struct AuthUser: Identifiable, Codable, Hashable, Sendable {
 }
 
 nonisolated struct TripPlan: Codable, Sendable {
+    let id: String?
     let destinationCity: String
     let destinationCountry: String
     let intro: String
@@ -188,4 +189,17 @@ nonisolated struct TripPlan: Codable, Sendable {
     let hiddenPlaces: [HiddenPlace]
     let heroCoordinate: LocationCoordinate
     let destinationCoordinate: LocationCoordinate
+
+    init(id: String? = nil, destinationCity: String, destinationCountry: String, intro: String, shareLine: String, previewDays: [ItineraryDay], fullDays: [ItineraryDay], hiddenPlaces: [HiddenPlace], heroCoordinate: LocationCoordinate, destinationCoordinate: LocationCoordinate) {
+        self.id = id
+        self.destinationCity = destinationCity
+        self.destinationCountry = destinationCountry
+        self.intro = intro
+        self.shareLine = shareLine
+        self.previewDays = previewDays
+        self.fullDays = fullDays
+        self.hiddenPlaces = hiddenPlaces
+        self.heroCoordinate = heroCoordinate
+        self.destinationCoordinate = destinationCoordinate
+    }
 }
