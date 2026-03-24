@@ -34,12 +34,11 @@ async function getPlaces(cityName, categoryId, limit = 15) {
     });
 
     const res = await fetch(
-      `https://api.foursquare.com/places/search?${params}`,
+      `https://api.foursquare.com/v3/places/search?${params}`,
       {
         headers: {
-          Authorization:        FSQ_KEY,
-          Accept:               'application/json',
-          'X-Places-Api-Version': '2025-06-17',
+          Authorization: FSQ_KEY,
+          Accept:        'application/json',
         },
         signal: AbortSignal.timeout(6000),
       }

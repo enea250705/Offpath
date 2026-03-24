@@ -20,27 +20,30 @@ app.get('/diag/foursquare', async (req, res) => {
   const key = process.env.FOURSQUARE_API_KEY || '';
   if (!key) return res.json({ error: 'FOURSQUARE_API_KEY is not set', keyPresent: false });
 
-  const params = new URLSearchParams({
-    near: city, categories: '13065', limit: '3',
-    fields: 'name,location,geocodes',
-  });
+  const headers = { Authorization: key, Accept: 'application/json' };
+
+  // Test 1: full search with categories + fields
+  const params = new URLSearchParams({ near: city, categories: '13065', limit: '3', fields: 'name,location,geocodes' });
+  // Test 2: bare minimum — just near, no extra params
+  const bareParams = new URLSearchParams({ near: city, limit: '1' });
+
   try {
-    const raw = await fetch(`https://api.foursquare.com/places/search?${params}`, {
-      headers: { Authorization: key, Accept: 'application/json', 'X-Places-Api-Version': '2025-06-17' },
-      signal: AbortSignal.timeout(8000),
-    });
-    const body = await raw.json();
+    const [raw, rawBare] = await Promise.all([
+      fetch(`https://api.foursquare.com/v3/places/search?${params}`,     { headers, signal: AbortSignal.timeout(8000) }),
+      fetch(`https://api.foursquare.com/v3/places/search?${bareParams}`, { headers, signal: AbortSignal.timeout(8000) }),
+    ]);
+    const [body, bodyBare] = await Promise.all([raw.json(), rawBare.json()]);
     res.json({
       keyPresent: true,
       keyPrefix: key.slice(0, 6) + '...',
-      httpStatus: raw.status,
-      ok: raw.ok,
-      body,
+      fullSearch:  { httpStatus: raw.status,     ok: raw.ok,     body },
+      bareSearch:  { httpStatus: rawBare.status, ok: rawBare.ok, body: bodyBare },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // Routes
 app.use('/v1/auth',  authRoutes);
