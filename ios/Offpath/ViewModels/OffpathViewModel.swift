@@ -289,8 +289,8 @@ final class OffpathViewModel {
     }
 
     // MARK: - Guide chat
-    func sendGuideMessage() async {
-        let trimmed = draftGuideInput.trimmingCharacters(in: .whitespacesAndNewlines)
+    func sendGuideMessage(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let plan else { return }
         guard canSendGuideMessage else {
             errorMessage = "You've used your 3 free messages. Unlock unlimited with a Trip Pass."
@@ -298,7 +298,6 @@ final class OffpathViewModel {
         }
         let userMessage = GuideMessage(role: "user", text: trimmed)
         guideMessages.append(userMessage)
-        draftGuideInput = ""
         let reply = await plannerService.reply(to: trimmed, plan: plan)
         guideMessages.append(reply)
     }

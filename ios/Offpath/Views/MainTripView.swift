@@ -489,19 +489,12 @@ struct GuideInputBar: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 13)
                 .background(.regularMaterial, in: .rect(cornerRadius: 22))
-                .onAppear {
-                    text = viewModel.draftGuideInput
-                }
-                .onChange(of: text) { _, new in
-                    viewModel.draftGuideInput = new
-                }
 
             Button {
-                let draft = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !draft.isEmpty else { return }
-                viewModel.draftGuideInput = draft
+                let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !message.isEmpty else { return }
                 text = ""
-                Task { await viewModel.sendGuideMessage() }
+                Task { await viewModel.sendGuideMessage(message) }
             } label: {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 15, weight: .bold))
