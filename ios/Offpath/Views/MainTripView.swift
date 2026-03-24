@@ -266,6 +266,7 @@ struct MagazineDayCard: View {
                         MomentRow(
                             moment: moment,
                             accentColor: accentColor,
+                            isFirst: index == 0,
                             isLast: index == day.moments.count - 1
                         )
                     }
@@ -288,12 +289,22 @@ struct MagazineDayCard: View {
 struct MomentRow: View {
     let moment: ItineraryMoment
     let accentColor: Color
+    let isFirst: Bool
     let isLast: Bool
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
             // Timeline
             VStack(spacing: 0) {
+                if !isFirst {
+                    Rectangle()
+                        .fill(accentColor.opacity(0.20))
+                        .frame(width: 1.5, height: 14)
+                } else {
+                    Color.clear
+                        .frame(width: 1.5, height: 14)
+                }
+
                 Circle()
                     .fill(accentColor)
                     .frame(width: 8, height: 8)
@@ -351,9 +362,9 @@ struct MomentRow: View {
                     .padding(.top, 2)
                 }
             }
+            .padding(.top, 14)
             .padding(.bottom, isLast ? 14 : 18)
         }
-        .padding(.top, 14)
     }
 }
 
