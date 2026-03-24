@@ -309,12 +309,10 @@ struct MomentRow: View {
                     .fill(accentColor)
                     .frame(width: 8, height: 8)
 
-                if !isLast {
-                    Rectangle()
-                        .fill(accentColor.opacity(0.20))
-                        .frame(width: 1.5)
-                        .frame(maxHeight: .infinity)
-                }
+                Rectangle()
+                    .fill(accentColor.opacity(0.20))
+                    .frame(width: 1.5)
+                    .frame(maxHeight: .infinity)
             }
             .frame(width: 16)
 
