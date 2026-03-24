@@ -25,8 +25,8 @@ app.get('/diag/foursquare', async (req, res) => {
     fields: 'name,location,geocodes',
   });
   try {
-    const raw = await fetch(`https://api.foursquare.com/v3/places/search?${params}`, {
-      headers: { Authorization: key, Accept: 'application/json' },
+    const raw = await fetch(`https://api.foursquare.com/places/search?${params}`, {
+      headers: { Authorization: key, Accept: 'application/json', 'X-Places-Api-Version': '2025-06-17' },
       signal: AbortSignal.timeout(8000),
     });
     const body = await raw.json();
