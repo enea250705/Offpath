@@ -437,7 +437,7 @@ struct GuideTabView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 64)
+            .padding(.top, 16)
             .padding(.bottom, 16)
 
             Divider().overlay(.white.opacity(0.10))
