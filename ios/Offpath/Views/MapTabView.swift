@@ -56,7 +56,7 @@ struct MapTabView: View {
                     }
                 }
             }
-            .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .includingAll))
+            .mapStyle(.standard(elevation: .realistic, pointsOfInterest: .all))
             .ignoresSafeArea()
             .onAppear { centerOnDestination() }
 

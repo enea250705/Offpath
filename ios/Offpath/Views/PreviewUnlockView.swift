@@ -6,6 +6,19 @@ struct PreviewUnlockView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                if viewModel.currentUser != nil {
+                    HStack {
+                        Spacer()
+                        Button {
+                            viewModel.appPhase = .trip
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(.white.opacity(0.70))
+                        }
+                    }
+                    .padding(.bottom, -8)
+                }
                 hero
                 introCard
                 previewDaySection
@@ -57,24 +70,35 @@ struct PreviewUnlockView: View {
 
     private var unlockCard: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Save your trip and unlock the full itinerary")
-                .font(.title2.weight(.bold))
+            if viewModel.currentUser != nil {
+                Text("Unlock your full trip")
+                    .font(.title2.weight(.bold))
 
-            Text("You've got the shape of the trip. Sign up now and the full plan, hidden places, and local guide come with you instantly.")
-                .font(.body)
-                .foregroundStyle(.secondary)
+                Text("Get every hidden place, the complete itinerary, and unlimited time with your local guide.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Save your trip and unlock the full itinerary")
+                    .font(.title2.weight(.bold))
+
+                Text("You've got the shape of the trip. Sign up now and the full plan, hidden places, and local guide come with you instantly.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
 
             VStack(spacing: 10) {
-                // Free — just auth, no purchase
-                TierRow(
-                    title: "Free",
-                    detail: "Full itinerary + 2 hidden places + 3 guide messages",
-                    isLoading: false
-                ) {
-                    viewModel.showAuth()
+                // Free — just auth, no purchase (only shown to users not yet signed in)
+                if viewModel.currentUser == nil {
+                    TierRow(
+                        title: "Free",
+                        detail: "Full itinerary + 2 hidden places + 3 guide messages",
+                        isLoading: false
+                    ) {
+                        viewModel.showAuth()
+                    }
                 }
 
-                // Paid tiers — purchase then auth
+                // Paid tiers — purchase then auth (or straight to trip if already signed in)
                 TierRow(
                     title: "Trip Pass  \(viewModel.purchaseService.formattedPrice(for: Config.IAP.tripPass).isEmpty ? "$2.99" : viewModel.purchaseService.formattedPrice(for: Config.IAP.tripPass))",
                     detail: "One full destination, every detail unlocked",
