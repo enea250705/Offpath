@@ -21,6 +21,17 @@ final class TravelPlannerService {
     private let geocoder: CLGeocoder = CLGeocoder()
     private let foursquare = FoursquareService()
 
+    // Render's free tier can return HTTP/3 (QUIC) protocol errors (-1017) on first connection.
+    // One retry is enough — iOS falls back to TCP/HTTP2 automatically on the second attempt.
+    private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await URLSession.shared.data(for: request)
+        } catch let error as URLError where error.code.rawValue == -1017 {
+            try await Task.sleep(for: .milliseconds(800))
+            return try await URLSession.shared.data(for: request)
+        }
+    }
+
     // Token is set after auth so the service can attach it to requests
     var authToken: String?
 
@@ -85,7 +96,7 @@ final class TravelPlannerService {
         }
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await fetch(request)
         guard let httpResponse = response as? HTTPURLResponse,
               200 ..< 300 ~= httpResponse.statusCode else {
             throw URLError(.badServerResponse)
@@ -109,7 +120,7 @@ final class TravelPlannerService {
         }
         request.httpBody = try JSONEncoder().encode(payload)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await fetch(request)
         guard let httpResponse = response as? HTTPURLResponse,
               200 ..< 300 ~= httpResponse.statusCode else {
             throw URLError(.badServerResponse)
