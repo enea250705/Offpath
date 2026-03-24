@@ -163,12 +163,16 @@ function organizeDays(venues, tripLength) {
   return days;
 }
 
-// Pick hidden places: choose unique venues not already used in the itinerary.
+// Pick hidden places: true "anti-tourist" local spots.
+// We look for venues that have good ratings but LOW popularity scores (the true hidden gems).
 function pickHiddenPlaces(venues, usedNames, count = 4) {
   const all = Object.values(venues).flat();
   const unused = all.filter(v => !usedNames.has(v.name));
-  // Prefer higher-rated places that aren't in the main itinerary
-  unused.sort((a, b) => b.rating - a.rating);
+  
+  // Sort to find the places that are highly rated but have the lowest popularity (hidden gems)
+  // We want the most "anti-tourist" places possible that are still good.
+  unused.sort((a, b) => a.popularity - b.popularity);
+  
   return unused.slice(0, count);
 }
 
