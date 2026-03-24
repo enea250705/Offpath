@@ -91,8 +91,9 @@ nonisolated struct ItineraryMoment: Identifiable, Codable, Hashable, Sendable {
     let rationale: String
     let transitNote: String
     let avoidNote: String
+    let coordinate: LocationCoordinate
 
-    init(id: UUID = UUID(), timeLabel: String, title: String, subtitle: String, rationale: String, transitNote: String, avoidNote: String) {
+    init(id: UUID = UUID(), timeLabel: String, title: String, subtitle: String, rationale: String, transitNote: String, avoidNote: String, coordinate: LocationCoordinate) {
         self.id = id
         self.timeLabel = timeLabel
         self.title = title
@@ -100,6 +101,7 @@ nonisolated struct ItineraryMoment: Identifiable, Codable, Hashable, Sendable {
         self.rationale = rationale
         self.transitNote = transitNote
         self.avoidNote = avoidNote
+        self.coordinate = coordinate
     }
 }
 

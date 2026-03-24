@@ -157,7 +157,8 @@ final class TravelPlannerService {
                         subtitle: "A polished start that makes the rest of the day flow naturally",
                         rationale: "This is when \(city) feels generous instead of crowded.",
                         transitNote: "Walk if you can.",
-                        avoidNote: "Skip the obvious breakfast near the main square."
+                        avoidNote: "Skip the obvious breakfast near the main square.",
+                        coordinate: coordinate
                     ),
                     ItineraryMoment(
                         timeLabel: "12:30",
@@ -165,7 +166,8 @@ final class TravelPlannerService {
                         subtitle: "The signature moment, placed exactly when it works best",
                         rationale: "You are hitting this at the sweet spot — enough energy, not too much.",
                         transitNote: "Keep the route compact.",
-                        avoidNote: "Don't overbook lunch."
+                        avoidNote: "Don't overbook lunch.",
+                        coordinate: coordinate
                     ),
                     ItineraryMoment(
                         timeLabel: "18:45",
@@ -173,7 +175,8 @@ final class TravelPlannerService {
                         subtitle: "A finish with texture, light, and local confidence",
                         rationale: "Evenings are where \(city) starts speaking in a lower voice.",
                         transitNote: "Arrive just before golden hour.",
-                        avoidNote: "Avoid the first rooftop everyone tags."
+                        avoidNote: "Avoid the first rooftop everyone tags.",
+                        coordinate: coordinate
                     )
                 ]
             )

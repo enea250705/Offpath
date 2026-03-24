@@ -38,7 +38,7 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
     {
       "id": "uuid-v4",
       "dayNumber": 1,
-      "title": "If dayNumber is 1, MUST be strictly 'Soft Landing at [Name of main airport for this city]'. For other days, give it an evocative name.",
+      "title": "If dayNumber is 1, MUST be strictly 'Soft landing at [Name of main airport for this city]'. For other days, give it an evocative name.",
       "mood": "short evocative phrase capturing the day's feel",
       "summary": "one sentence about this day's energy",
       "moments": [
@@ -49,7 +49,8 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
           "subtitle": "one line on why this moment works",
           "rationale": "2 sentences of local insight — what makes this worth doing, told like a friend who knows",
           "transitNote": "how to get there from the previous stop",
-          "avoidNote": "one specific thing to skip or watch out for at this place"
+          "avoidNote": "one specific thing to skip or watch out for at this place",
+          "coordinate": { "latitude": KEEP_FROM_SKELETON, "longitude": KEEP_FROM_SKELETON }
         }
       ]
     }

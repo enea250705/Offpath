@@ -15,7 +15,7 @@ struct MapTabView: View {
                     id: moment.id,
                     title: moment.title,
                     subtitle: "\(day.title) · \(moment.timeLabel)",
-                    coordinate: plan.destinationCoordinate.clCoordinate,
+                    coordinate: moment.coordinate.clCoordinate,
                     kind: .itinerary
                 )
             }
