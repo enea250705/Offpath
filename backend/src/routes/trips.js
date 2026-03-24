@@ -18,7 +18,7 @@ router.post('/full', requireAuth, async (req, res) => {
   }
 
   try {
-    // Step 1 — Foursquare: get real venues (filtered, rated, with coordinates)
+    // Step 1 — Google Places: get real venues (rated, with coordinates)
     const venues = await getDestinationVenues(destination);
 
     // Step 2 — Organize places into days by category + time-of-day
