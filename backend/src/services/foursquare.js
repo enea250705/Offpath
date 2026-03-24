@@ -90,27 +90,65 @@ async function getDestinationVenues(cityName) {
   };
 }
 
+// Haversine distance in km between two coordinate pairs
+function getDistance(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 999;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Organize venues into day slots based on category and neighborhood proximity.
 // Returns an array of days, each with morning/midday/evening slots filled with real places.
+// Groups by distance to minimize movement spanning the day.
 function organizeDays(venues, tripLength) {
-  // Pool all venues with their slot assignment
   const pool = [];
   for (const [cat, places] of Object.entries(venues)) {
     const slot = SLOT_MAP[cat] || 'midday';
     places.forEach(p => pool.push({ ...p, slot, sourceCategory: cat }));
   }
 
-  // Separate by slot
-  const morning = pool.filter(p => p.slot === 'morning');
-  const midday  = pool.filter(p => p.slot === 'midday');
-  const evening = pool.filter(p => p.slot === 'evening');
+  // Separate by slot and sort by rating (highest first)
+  const sortByRating = (a, b) => b.rating - a.rating;
+  const morning = pool.filter(p => p.slot === 'morning').sort(sortByRating);
+  const midday  = pool.filter(p => p.slot === 'midday').sort(sortByRating);
+  const evening = pool.filter(p => p.slot === 'evening').sort(sortByRating);
 
   const days = [];
 
   for (let d = 0; d < tripLength; d++) {
-    const morningPlace = morning[d % morning.length] || midday[0];
-    const middayPlace  = midday[d % midday.length]   || morning[0];
-    const eveningPlace = evening[d % evening.length]  || midday[0];
+    // 1. Pick morning anchor (highest rated remaining, or fallback)
+    const morningPlace = morning.shift() || midday.shift() || evening.shift();
+    if (!morningPlace) break; // Out of places completely
+
+    // 2. Pick midday place closest to the morning anchor
+    let middayPlace;
+    if (midday.length > 0) {
+      midday.sort((a, b) => getDistance(morningPlace.latitude, morningPlace.longitude, a.latitude, a.longitude) - 
+                            getDistance(morningPlace.latitude, morningPlace.longitude, b.latitude, b.longitude));
+      middayPlace = midday.shift();
+    } else {
+      middayPlace = morning.shift() || evening.shift();
+    }
+
+    // 3. Pick evening place closest to the midday place
+    let eveningPlace;
+    if (evening.length > 0) {
+      const anchor = middayPlace || morningPlace;
+      evening.sort((a, b) => getDistance(anchor.latitude, anchor.longitude, a.latitude, a.longitude) - 
+                             getDistance(anchor.latitude, anchor.longitude, b.latitude, b.longitude));
+      eveningPlace = evening.shift();
+    } else {
+      eveningPlace = midday.shift() || morning.shift();
+    }
+
+    if (!middayPlace) middayPlace = morningPlace;
+    if (!eveningPlace) eveningPlace = middayPlace;
 
     days.push({
       dayNumber: d + 1,
