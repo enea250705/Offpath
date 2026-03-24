@@ -137,34 +137,6 @@ struct TripGenerationView: View {
                 }
             }
 
-            // Airplane — follows the curved path
-            if pathPoints.count > 1 {
-                let idx = min(Int(progress * Double(pathPoints.count - 1)), pathPoints.count - 1)
-                let planeCoord = pathPoints[idx]
-                let rotation = planeBearing(at: idx)
-
-                Annotation("", coordinate: planeCoord) {
-                    ZStack {
-                        // Glow
-                        Circle()
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 52, height: 52)
-                            .blur(radius: 8)
-
-                        // Shadow ring
-                        Circle()
-                            .fill(.black.opacity(0.3))
-                            .frame(width: 40, height: 40)
-
-                        // Plane icon
-                        Image(systemName: "airplane")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundStyle(.white)
-                            .rotationEffect(.degrees(rotation))
-                            .shadow(color: .white.opacity(0.8), radius: 4)
-                    }
-                }
-            }
         }
         .mapStyle(.hybrid(elevation: .realistic))
         .ignoresSafeArea()
@@ -213,11 +185,7 @@ struct TripGenerationView: View {
                 }
                 .frame(maxWidth: .infinity)
 
-                Image(systemName: "airplane")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.orange)
-
-                VStack(spacing: 2) {
+VStack(spacing: 2) {
                     Text("TO")
                         .font(.system(size: 9, weight: .semibold))
                         .kerning(1.5)
@@ -327,22 +295,7 @@ struct TripGenerationView: View {
         ))
     }
 
-    // Bearing angle for the plane to face the right direction
-    private func planeBearing(at index: Int) -> Double {
-        guard pathPoints.count > 1 else { return 0 }
-        let next = min(index + 3, pathPoints.count - 1)
-        let curr = pathPoints[index]
-        let nxt  = pathPoints[next]
-        let dLon = (nxt.longitude - curr.longitude) * .pi / 180
-        let lat1 = curr.latitude * .pi / 180
-        let lat2 = nxt.latitude  * .pi / 180
-        let y = sin(dLon) * cos(lat2)
-        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-        let bearing = atan2(y, x) * 180 / .pi
-        return bearing
-    }
-
-    private func startAnimations() {
+private func startAnimations() {
         // Pulse markers
         withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
             pulseOrigin = true
