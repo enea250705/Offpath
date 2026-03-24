@@ -471,7 +471,7 @@ struct GuideTabView: View {
                 .padding(.bottom, 100)
             } else {
                 GuideInputBar(viewModel: viewModel)
-                    .padding(.bottom, 90)
+                    .padding(.bottom, 110)
             }
         }
     }
