@@ -12,7 +12,7 @@ services:
         value: production
       - key: GROQ_API_KEY
         sync: false
-      - key: FOURSQUARE_API_KEY
+      - key: GOOGLE_MAPS_API_KEY
         sync: false
       - key: TAVILY_API_KEY
         sync: false

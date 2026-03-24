@@ -14,30 +14,31 @@ app.use(express.json());
 // Health check — Render uses this to confirm the service is up
 app.get('/health', (req, res) => res.json({ status: 'ok', commit: 'bcce5f1' }));
 
-// Foursquare diagnostic — shows raw API response status and body
-app.get('/diag/foursquare', async (req, res) => {
+// Google Places API diagnostic
+app.get('/diag/places', async (req, res) => {
   const city = req.query.city || 'Lisbon';
-  const key = process.env.FOURSQUARE_API_KEY || '';
-  if (!key) return res.json({ error: 'FOURSQUARE_API_KEY is not set', keyPresent: false });
-
-  const headers = { Authorization: `Bearer ${key}`, Accept: 'application/json', 'X-Places-Api-Version': '2025-06-17' };
-
-  // Test 1: full search with categories + fields
-  const params = new URLSearchParams({ near: city, categories: '13065', limit: '3', fields: 'name,location,geocodes' });
-  // Test 2: bare minimum — just near, no extra params
-  const bareParams = new URLSearchParams({ near: city, limit: '1' });
+  const key  = process.env.GOOGLE_MAPS_API_KEY || '';
+  if (!key) return res.json({ error: 'GOOGLE_MAPS_API_KEY is not set', keyPresent: false });
 
   try {
-    const [raw, rawBare] = await Promise.all([
-      fetch(`https://places-api.foursquare.com/places/search?${params}`,     { headers, signal: AbortSignal.timeout(8000) }),
-      fetch(`https://places-api.foursquare.com/places/search?${bareParams}`, { headers, signal: AbortSignal.timeout(8000) }),
-    ]);
-    const [body, bodyBare] = await Promise.all([raw.json(), rawBare.json()]);
+    const raw = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type':     'application/json',
+        'X-Goog-Api-Key':   key,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating',
+      },
+      body: JSON.stringify({ textQuery: `restaurants in ${city}`, maxResultCount: 3, languageCode: 'en' }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const body = await raw.json();
     res.json({
       keyPresent: true,
-      keyPrefix: key.slice(0, 6) + '...',
-      fullSearch:  { httpStatus: raw.status,     ok: raw.ok,     body },
-      bareSearch:  { httpStatus: rawBare.status, ok: rawBare.ok, body: bodyBare },
+      keyPrefix:  key.slice(0, 8) + '...',
+      httpStatus: raw.status,
+      ok:         raw.ok,
+      results:    body.places?.length ?? 0,
+      sample:     body.places?.[0] ?? body,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -1,16 +1,16 @@
-// Foursquare Places API (new host: places-api.foursquare.com)
-// Docs: https://docs.foursquare.com/fsq-developers-places/reference/place-search
+// Google Places API (New)
+// Docs: https://developers.google.com/maps/documentation/places/web-service/text-search
 
-const FSQ_KEY = process.env.FOURSQUARE_API_KEY || '';
+const GMAPS_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
 
-const CATEGORIES = {
-  dining:    '13065',  // Dining and Drinking
-  cafe:      '13035',  // Coffee Shop
-  culture:   '10000',  // Arts and Entertainment
-  landmark:  '16000',  // Landmarks and Outdoors
-  nightlife: '10020',  // Nightlife Spot
-  historic:  '16032',  // Historic and Protected Site
-  market:    '17069',  // Market
+// Google Place types per category
+const CATEGORY_TYPES = {
+  dining:    'restaurant',
+  cafe:      'cafe',
+  culture:   'museum',
+  landmark:  'tourist_attraction',
+  nightlife: 'bar',
+  market:    'market',
 };
 
 // Time-of-day mapping for slot assignment
@@ -18,44 +18,54 @@ const SLOT_MAP = {
   cafe:      'morning',
   culture:   'midday',
   landmark:  'midday',
-  historic:  'midday',
-  market:    'morning',
   dining:    'evening',
   nightlife: 'evening',
+  market:    'morning',
 };
 
-async function getPlaces(cityName, categoryId, limit = 15) {
-  if (!FSQ_KEY) return [];
-  try {
-    const params = new URLSearchParams({
-      near:     cityName,
-      categories: categoryId,
-      limit:    String(limit),
-    });
+// Fields to request from Google Places API
+const FIELD_MASK = [
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.location',
+  'places.types',
+  'places.primaryType',
+  'places.rating',
+  'places.userRatingCount',
+  'places.primaryTypeDisplayName',
+].join(',');
 
-    const res = await fetch(
-      `https://places-api.foursquare.com/places/search?${params}`,
-      {
-        headers: {
-          Authorization:          `Bearer ${FSQ_KEY}`,
-          Accept:                 'application/json',
-          'X-Places-Api-Version': '2025-06-17',
-        },
-        signal: AbortSignal.timeout(6000),
-      }
-    );
+async function getPlaces(cityName, placeType, limit = 15) {
+  if (!GMAPS_KEY) return [];
+  try {
+    const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'Content-Type':    'application/json',
+        'X-Goog-Api-Key':  GMAPS_KEY,
+        'X-Goog-FieldMask': FIELD_MASK,
+      },
+      body: JSON.stringify({
+        textQuery:      `${placeType} in ${cityName}`,
+        maxResultCount: Math.min(limit, 20),
+        languageCode:   'en',
+      }),
+      signal: AbortSignal.timeout(6000),
+    });
 
     if (!res.ok) return [];
     const data = await res.json();
-    return (data.results || []).map(r => ({
-      name:         r.name,
-      neighborhood: r.location?.neighborhood?.[0] || r.location?.locality || '',
-      address:      r.location?.formatted_address || '',
-      category:     r.categories?.[0]?.name || '',
-      latitude:     r.geocodes?.main?.latitude || 0,
-      longitude:    r.geocodes?.main?.longitude || 0,
-      rating:       0,
-      popularity:   0,
+
+    return (data.places || []).map(p => ({
+      name:         p.displayName?.text || '',
+      neighborhood: '',
+      address:      p.formattedAddress || '',
+      category:     p.primaryTypeDisplayName?.text || p.primaryType || placeType,
+      latitude:     p.location?.latitude  || 0,
+      longitude:    p.location?.longitude || 0,
+      rating:       p.rating              || 0,
+      popularity:   Math.min((p.userRatingCount || 0) / 5000, 1),
     }));
   } catch {
     return [];
@@ -63,28 +73,17 @@ async function getPlaces(cityName, categoryId, limit = 15) {
 }
 
 // Fetch real venues across all relevant categories for a destination city.
-// Filters out tourist traps (popularity > 0.95) and sorts by rating.
 async function getDestinationVenues(cityName) {
   const [dining, cafes, culture, landmarks, nightlife, markets] = await Promise.all([
-    getPlaces(cityName, CATEGORIES.dining,    8),
-    getPlaces(cityName, CATEGORIES.cafe,      6),
-    getPlaces(cityName, CATEGORIES.culture,   6),
-    getPlaces(cityName, CATEGORIES.landmark,  6),
-    getPlaces(cityName, CATEGORIES.nightlife, 6),
-    getPlaces(cityName, CATEGORIES.market,    4),
+    getPlaces(cityName, CATEGORY_TYPES.dining,    8),
+    getPlaces(cityName, CATEGORY_TYPES.cafe,      6),
+    getPlaces(cityName, CATEGORY_TYPES.culture,   6),
+    getPlaces(cityName, CATEGORY_TYPES.landmark,  6),
+    getPlaces(cityName, CATEGORY_TYPES.nightlife, 6),
+    getPlaces(cityName, CATEGORY_TYPES.market,    4),
   ]);
 
-  // Keep all results (rating/popularity not available on free tier)
-  const filter = list => list;
-
-  return {
-    dining:    filter(dining),
-    cafes:     filter(cafes),
-    culture:   filter(culture),
-    landmarks: filter(landmarks),
-    nightlife: filter(nightlife),
-    markets:   filter(markets),
-  };
+  return { dining, cafes, culture, landmarks, nightlife, markets };
 }
 
 // Haversine distance in km between two coordinate pairs
@@ -100,9 +99,7 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Organize venues into day slots based on category and neighborhood proximity.
-// Returns an array of days, each with morning/midday/evening slots filled with real places.
-// Groups by distance to minimize movement spanning the day.
+// Organize venues into day slots based on category and geographic proximity.
 function organizeDays(venues, tripLength) {
   const pool = [];
   for (const [cat, places] of Object.entries(venues)) {
@@ -110,7 +107,6 @@ function organizeDays(venues, tripLength) {
     places.forEach(p => pool.push({ ...p, slot, sourceCategory: cat }));
   }
 
-  // Separate by slot and sort by rating (highest first)
   const sortByRating = (a, b) => b.rating - a.rating;
   const morning = pool.filter(p => p.slot === 'morning').sort(sortByRating);
   const midday  = pool.filter(p => p.slot === 'midday').sort(sortByRating);
@@ -119,26 +115,27 @@ function organizeDays(venues, tripLength) {
   const days = [];
 
   for (let d = 0; d < tripLength; d++) {
-    // 1. Pick morning anchor (highest rated remaining, or fallback)
     const morningPlace = morning.shift() || midday.shift() || evening.shift();
-    if (!morningPlace) break; // Out of places completely
+    if (!morningPlace) break;
 
-    // 2. Pick midday place closest to the morning anchor
     let middayPlace;
     if (midday.length > 0) {
-      midday.sort((a, b) => getDistance(morningPlace.latitude, morningPlace.longitude, a.latitude, a.longitude) - 
-                            getDistance(morningPlace.latitude, morningPlace.longitude, b.latitude, b.longitude));
+      midday.sort((a, b) =>
+        getDistance(morningPlace.latitude, morningPlace.longitude, a.latitude, a.longitude) -
+        getDistance(morningPlace.latitude, morningPlace.longitude, b.latitude, b.longitude)
+      );
       middayPlace = midday.shift();
     } else {
       middayPlace = morning.shift() || evening.shift();
     }
 
-    // 3. Pick evening place closest to the midday place
     let eveningPlace;
     if (evening.length > 0) {
       const anchor = middayPlace || morningPlace;
-      evening.sort((a, b) => getDistance(anchor.latitude, anchor.longitude, a.latitude, a.longitude) - 
-                             getDistance(anchor.latitude, anchor.longitude, b.latitude, b.longitude));
+      evening.sort((a, b) =>
+        getDistance(anchor.latitude, anchor.longitude, a.latitude, a.longitude) -
+        getDistance(anchor.latitude, anchor.longitude, b.latitude, b.longitude)
+      );
       eveningPlace = evening.shift();
     } else {
       eveningPlace = midday.shift() || morning.shift();
@@ -151,7 +148,7 @@ function organizeDays(venues, tripLength) {
       dayNumber: d + 1,
       moments: [
         { timeLabel: '09:00', place: morningPlace },
-        { timeLabel: '12:30', place: middayPlace },
+        { timeLabel: '12:30', place: middayPlace  },
         { timeLabel: '18:45', place: eveningPlace },
       ],
     });
@@ -160,13 +157,18 @@ function organizeDays(venues, tripLength) {
   return days;
 }
 
-// Pick hidden places: true "anti-tourist" local spots.
-// We look for venues that have good ratings but LOW popularity scores (the true hidden gems).
+// Pick hidden gems: lower-rated but uncrowded venues not already in the itinerary.
 function pickHiddenPlaces(venues, usedNames, count = 4) {
-  const all = Object.values(venues).flat();
+  const all    = Object.values(venues).flat();
   const unused = all.filter(v => !usedNames.has(v.name));
-  
-  return unused.slice(0, count);
+  // Prefer decent rating but low popularity (true local spots)
+  return unused
+    .filter(v => v.rating >= 3.5 && v.popularity < 0.4)
+    .sort((a, b) => a.popularity - b.popularity)
+    .slice(0, count)
+    .concat(unused.slice(0, count))
+    .filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i)
+    .slice(0, count);
 }
 
 module.exports = { getDestinationVenues, organizeDays, pickHiddenPlaces };
