@@ -39,12 +39,17 @@ final class AuthService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 60
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              200 ..< 300 ~= httpResponse.statusCode else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        if httpResponse.statusCode == 401 {
+            throw URLError(.userAuthenticationRequired)
+        }
+        guard 200 ..< 300 ~= httpResponse.statusCode else {
             throw URLError(.badServerResponse)
         }
 
@@ -72,7 +77,7 @@ final class AuthService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 15
+        request.timeoutInterval = 60
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await URLSession.shared.data(for: request)

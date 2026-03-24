@@ -245,8 +245,19 @@ final class OffpathViewModel {
                 displayName: authName.isEmpty ? nil : authName
             )
             finishAuth(user: user)
+        } catch let error as URLError {
+            switch error.code {
+            case .userAuthenticationRequired:
+                errorMessage = "Wrong password. Try again or create a new account."
+            case .timedOut:
+                errorMessage = "The server is waking up — this can take up to a minute on first load. Try again in a moment."
+            case .notConnectedToInternet, .networkConnectionLost:
+                errorMessage = "No internet connection. Check your connection and try again."
+            default:
+                errorMessage = "Couldn't reach the server. Try again in a moment."
+            }
         } catch {
-            errorMessage = "Couldn't sign you in. Check your details and try again."
+            errorMessage = "Something went wrong. Try again."
         }
     }
 
@@ -257,6 +268,8 @@ final class OffpathViewModel {
         do {
             let user = try await authService.socialSignIn(provider: .apple, token: token, displayName: fullName)
             finishAuth(user: user)
+        } catch let error as URLError where error.code == .timedOut {
+            errorMessage = "The server is waking up — try again in a moment."
         } catch {
             errorMessage = "Apple Sign-In failed. Please try again."
         }
@@ -274,6 +287,8 @@ final class OffpathViewModel {
                 displayName: result.displayName
             )
             finishAuth(user: user)
+        } catch let error as URLError where error.code == .timedOut {
+            errorMessage = "The server is waking up — try again in a moment."
         } catch {
             errorMessage = "Google Sign-In failed. Please try again."
         }
