@@ -50,7 +50,7 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
           "rationale": "2 sentences of local insight — what makes this worth doing, told like a friend who knows",
           "transitNote": "how to get there from the previous stop",
           "avoidNote": "one specific thing to skip or watch out for at this place",
-          "coordinate": { "latitude": KEEP_FROM_SKELETON, "longitude": KEEP_FROM_SKELETON }
+          "coordinate": { "latitude": 0.0, "longitude": 0.0 }
         }
       ]
     }
@@ -63,7 +63,7 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
       "vibe": "2-3 word descriptor",
       "note": "2 sentences — what makes it special, written like insider knowledge",
       "bestTime": "specific time or condition",
-      "coordinate": { "latitude": KEEP_FROM_LIST, "longitude": KEEP_FROM_LIST }
+      "coordinate": { "latitude": 0.0, "longitude": 0.0 }
     }
   ],
   "heroCoordinate": { "latitude": 0.0, "longitude": 0.0 },
@@ -78,7 +78,8 @@ CRITICAL RULES:
 - fullDays must have exactly ${tripLength} days
 - previewDays must be an array containing only day 1
 - hiddenPlaces must have exactly ${hiddenPlaces.length} entries with EXACT names from the list
-- All coordinates for hidden places must use the EXACT values from the list
+- All coordinates for hidden places MUST use the EXACT values from the list
+- All coordinates for moments MUST use the EXACT latitude and longitude values from the skeleton
 - heroCoordinate and destinationCoordinate must be real GPS coordinates for ${destination}
 - All UUIDs must be unique valid UUID v4 strings`;
 
