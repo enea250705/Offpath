@@ -29,7 +29,10 @@ final class AuthService {
     private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await URLSession.shared.data(for: request)
-        } catch let error as URLError where error.code.rawValue == -1017 {
+        } catch let error as URLError where error.code.rawValue == -1017 || error.code == .networkConnectionLost {
+            // -1017: cannot parse response (QUIC framing error)
+            // -1005: network connection lost (QUIC connection dropped by Render)
+            // One retry is enough — iOS falls back to TCP/HTTP2 on the second attempt.
             try await Task.sleep(for: .milliseconds(800))
             return try await URLSession.shared.data(for: request)
         }
