@@ -38,7 +38,7 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
     {
       "id": "uuid-v4",
       "dayNumber": 1,
-      "title": "Day 1 — give it an evocative name",
+      "title": "If dayNumber is 1, MUST be strictly 'Soft Landing at [Name of main airport for this city]'. For other days, give it an evocative name.",
       "mood": "short evocative phrase capturing the day's feel",
       "summary": "one sentence about this day's energy",
       "moments": [
