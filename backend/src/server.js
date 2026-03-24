@@ -12,7 +12,7 @@ app.use(cors());
 app.use(express.json());
 
 // Health check — Render uses this to confirm the service is up
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', commit: 'bcce5f1' }));
 
 // Foursquare diagnostic — shows raw API response status and body
 app.get('/diag/foursquare', async (req, res) => {
