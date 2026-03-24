@@ -1,5 +1,5 @@
-// Foursquare Places API v3
-// Docs: https://docs.foursquare.com/developer/reference/place-search
+// Foursquare Places API
+// Docs: https://docs.foursquare.com/fsq-developers-places/reference/place-search
 
 const FSQ_KEY = process.env.FOURSQUARE_API_KEY || '';
 
@@ -28,19 +28,18 @@ async function getPlaces(cityName, categoryId, limit = 15) {
   if (!FSQ_KEY) return [];
   try {
     const params = new URLSearchParams({
-      near:       cityName,
-      categories: categoryId,
-      limit:      String(limit),
-      sort:       'RELEVANCE',
-      fields:     'name,location,categories,geocodes',
+      near:     cityName,
+      category: categoryId,
+      limit:    String(limit),
     });
 
     const res = await fetch(
-      `https://api.foursquare.com/v3/places/search?${params}`,
+      `https://places-api.foursquare.com/places/search?${params}`,
       {
         headers: {
-          Authorization: FSQ_KEY,
-          Accept: 'application/json',
+          Authorization:        `Bearer ${FSQ_KEY}`,
+          'X-Places-Api-Version': '2025-06-17',
+          Accept:               'application/json',
         },
         signal: AbortSignal.timeout(6000),
       }
@@ -53,8 +52,8 @@ async function getPlaces(cityName, categoryId, limit = 15) {
       neighborhood: r.location?.neighborhood?.[0] || r.location?.locality || '',
       address:      r.location?.formatted_address || '',
       category:     r.categories?.[0]?.name || '',
-      latitude:     r.geocodes?.main?.latitude || 0,
-      longitude:    r.geocodes?.main?.longitude || 0,
+      latitude:     r.latitude || 0,
+      longitude:    r.longitude || 0,
       rating:       0,
       popularity:   0,
     }));

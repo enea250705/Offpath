@@ -21,20 +21,25 @@ app.get('/diag/foursquare', async (req, res) => {
   if (!key) return res.json({ error: 'FOURSQUARE_API_KEY is not set', keyPresent: false });
 
   const params = new URLSearchParams({
-    near: city, categories: '13065', limit: '3', sort: 'RATING',
-    fields: 'name,location,geocodes,rating,popularity',
+    near: city, category: '13065', limit: '3',
   });
   try {
-    const raw = await fetch(`https://api.foursquare.com/v3/places/search?${params}`, {
-      headers: { Authorization: key, Accept: 'application/json' },
+    const raw = await fetch(`https://places-api.foursquare.com/places/search?${params}`, {
+      headers: {
+        Authorization:          `Bearer ${key}`,
+        'X-Places-Api-Version': '2025-06-17',
+        Accept:                 'application/json',
+      },
       signal: AbortSignal.timeout(8000),
     });
     const body = await raw.json();
+    const coords = (body.results || []).map(r => ({ name: r.name, latitude: r.latitude, longitude: r.longitude }));
     res.json({
       keyPresent: true,
       keyPrefix: key.slice(0, 6) + '...',
       httpStatus: raw.status,
       ok: raw.ok,
+      coords,
       body,
     });
   } catch (err) {
