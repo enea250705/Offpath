@@ -222,7 +222,12 @@ final class OffpathViewModel {
     }
 
     func showAuth() {
-        appPhase = .auth
+        if currentUser != nil {
+            // Already signed in, just unlock the trip
+            appPhase = .trip
+        } else {
+            appPhase = .auth
+        }
     }
 
     // MARK: - Auth (email)
