@@ -87,6 +87,9 @@ final class OffpathViewModel {
             plannerService.authToken = user.token
             if let savedPlan = loadPersistedPlan() {
                 plan = savedPlan
+                if let savedMessages = loadPersistedGuideMessages() {
+                    guideMessages = savedMessages
+                }
                 appPhase = .trip
             } else {
                 appPhase = .onboarding
@@ -107,6 +110,21 @@ final class OffpathViewModel {
 
     func clearPersistedPlan() {
         UserDefaults.standard.removeObject(forKey: "offpath.currentPlan")
+    }
+
+    // MARK: - Guide messages persistence (UserDefaults)
+    private func persistGuideMessages() {
+        guard let data = try? JSONEncoder().encode(guideMessages) else { return }
+        UserDefaults.standard.set(data, forKey: "offpath.guideMessages")
+    }
+
+    private func loadPersistedGuideMessages() -> [GuideMessage]? {
+        guard let data = UserDefaults.standard.data(forKey: "offpath.guideMessages") else { return nil }
+        return try? JSONDecoder().decode([GuideMessage].self, from: data)
+    }
+
+    private func clearPersistedGuideMessages() {
+        UserDefaults.standard.removeObject(forKey: "offpath.guideMessages")
     }
 
     // MARK: - Onboarding
@@ -258,6 +276,7 @@ final class OffpathViewModel {
         guideMessages = [
             GuideMessage(role: "assistant", text: "I'll be your local while you're there. Ask me what's worth noticing, where locals actually go after dinner, or what's overrated around you.")
         ]
+        clearPersistedGuideMessages()
         withAnimation { appPhase = .onboarding }
     }
 
@@ -298,8 +317,10 @@ final class OffpathViewModel {
         }
         let userMessage = GuideMessage(role: "user", text: trimmed)
         guideMessages.append(userMessage)
+        persistGuideMessages()
         let reply = await plannerService.reply(to: trimmed, plan: plan)
         guideMessages.append(reply)
+        persistGuideMessages()
     }
 
     // MARK: - Private
