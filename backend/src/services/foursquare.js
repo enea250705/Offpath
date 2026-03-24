@@ -1,4 +1,4 @@
-// Foursquare Places API
+// Foursquare Places API (new host: places-api.foursquare.com)
 // Docs: https://docs.foursquare.com/fsq-developers-places/reference/place-search
 
 const FSQ_KEY = process.env.FOURSQUARE_API_KEY || '';
@@ -34,7 +34,7 @@ async function getPlaces(cityName, categoryId, limit = 15) {
     });
 
     const res = await fetch(
-      `https://api.foursquare.com/v3/places/search?${params}`,
+      `https://places-api.foursquare.com/places/search?${params}`,
       {
         headers: {
           Authorization: `Bearer ${FSQ_KEY}`,

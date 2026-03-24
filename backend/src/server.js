@@ -29,8 +29,8 @@ app.get('/diag/foursquare', async (req, res) => {
 
   try {
     const [raw, rawBare] = await Promise.all([
-      fetch(`https://api.foursquare.com/v3/places/search?${params}`,     { headers, signal: AbortSignal.timeout(8000) }),
-      fetch(`https://api.foursquare.com/v3/places/search?${bareParams}`, { headers, signal: AbortSignal.timeout(8000) }),
+      fetch(`https://places-api.foursquare.com/places/search?${params}`,     { headers, signal: AbortSignal.timeout(8000) }),
+      fetch(`https://places-api.foursquare.com/places/search?${bareParams}`, { headers, signal: AbortSignal.timeout(8000) }),
     ]);
     const [body, bodyBare] = await Promise.all([raw.json(), rawBare.json()]);
     res.json({
