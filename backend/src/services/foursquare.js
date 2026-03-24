@@ -29,17 +29,16 @@ async function getPlaces(cityName, categoryId, limit = 15) {
   try {
     const params = new URLSearchParams({
       near:     cityName,
-      category: categoryId,
+      categories: categoryId,
       limit:    String(limit),
     });
 
     const res = await fetch(
-      `https://places-api.foursquare.com/places/search?${params}`,
+      `https://api.foursquare.com/v3/places/search?${params}`,
       {
         headers: {
-          Authorization:        `Bearer ${FSQ_KEY}`,
-          'X-Places-Api-Version': '2025-06-17',
-          Accept:               'application/json',
+          Authorization: FSQ_KEY,
+          Accept:        'application/json',
         },
         signal: AbortSignal.timeout(6000),
       }
@@ -52,8 +51,8 @@ async function getPlaces(cityName, categoryId, limit = 15) {
       neighborhood: r.location?.neighborhood?.[0] || r.location?.locality || '',
       address:      r.location?.formatted_address || '',
       category:     r.categories?.[0]?.name || '',
-      latitude:     r.latitude || 0,
-      longitude:    r.longitude || 0,
+      latitude:     r.geocodes?.main?.latitude || 0,
+      longitude:    r.geocodes?.main?.longitude || 0,
       rating:       0,
       popularity:   0,
     }));
