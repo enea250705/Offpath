@@ -305,9 +305,11 @@ final class OffpathViewModel {
         do {
             let success = try await purchaseService.purchase(product)
             if success {
-                // Purchase complete — go to auth if not logged in, else stay on trip
+                // Purchase complete — go to auth if not logged in, else unlock the trip
                 if currentUser == nil {
                     appPhase = .auth
+                } else {
+                    appPhase = .trip // Unlock!
                 }
             }
         } catch {
@@ -319,6 +321,15 @@ final class OffpathViewModel {
         isPurchasing = true
         defer { isPurchasing = false }
         await purchaseService.restorePurchases()
+        if purchaseService.hasFullAccess {
+            if currentUser == nil {
+                appPhase = .auth
+            } else {
+                appPhase = .trip
+            }
+        } else {
+            errorMessage = "No previous purchases were found to restore."
+        }
     }
 
     // MARK: - Guide chat
