@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { generateTrip } = require('../services/groq');
-const { getDestinationVenues } = require('../services/foursquare');
+const { getDestinationVenues, organizeDays, pickHiddenPlaces } = require('../services/foursquare');
 const { researchVenues } = require('../services/tavily');
 const { pool } = require('../db');
 
@@ -18,18 +18,27 @@ router.post('/full', requireAuth, async (req, res) => {
   }
 
   try {
-    // Step 1 — Foursquare: get real venue names for this city
+    // Step 1 — Foursquare: get real venues (filtered, rated, with coordinates)
     const venues = await getDestinationVenues(destination);
-    venues.city = destination;
 
-    // Step 2 — Tavily: web-search the top venues to get real descriptions
-    // Runs after FSQ so we search actual venue names, not generic queries.
+    // Step 2 — Organize places into days by category + time-of-day
+    const organizedDays = organizeDays(venues, tripLength);
+
+    // Collect used place names to pick hidden places from unused venues
+    const usedNames = new Set();
+    organizedDays.forEach(d => d.moments.forEach(m => usedNames.add(m.place.name)));
+    const hiddenPlaces = pickHiddenPlaces(venues, usedNames, 4);
+
+    // Step 3 — Tavily: web-search the top venues for real descriptions
     const research = await researchVenues(venues, destination);
 
-    // Step 3 — Groq: generate itinerary grounded in real places + real research
-    const plan = await generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues, research });
+    // Step 4 — Groq: AI writes ONLY narrative text around the real place skeleton
+    const plan = await generateTrip({
+      destination, travelStyle, travelerGroup, tripLength,
+      organizedDays, hiddenPlaces, research,
+    });
 
-    // Persist the trip so the user can retrieve it later
+    // Persist the trip
     const result = await pool.query(
       `INSERT INTO trips (user_id, destination_city, destination_country, intro, share_line, payload)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
@@ -43,7 +52,7 @@ router.post('/full', requireAuth, async (req, res) => {
       ]
     );
 
-    res.json({ ...plan, tripId: result.rows[0].id });
+    res.json({ ...plan, id: result.rows[0].id });
   } catch (err) {
     console.error('[trips/full]', err);
     res.status(500).json({ error: 'Failed to generate trip' });

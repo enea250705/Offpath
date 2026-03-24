@@ -3,24 +3,34 @@ const Groq = require('groq-sdk');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = 'llama-3.3-70b-versatile';
 
-// MARK: - Trip generation
+// MARK: - Trip generation (structure-first approach)
+// The app pre-builds the itinerary skeleton with real Foursquare places.
+// AI only writes the narrative text — it cannot change or hallucinate places.
 
-async function generateTrip({ destination, travelStyle, travelerGroup, tripLength, venues, research }) {
-  const venueBlock    = buildVenueBlock(venues);
+async function generateTrip({ destination, travelStyle, travelerGroup, tripLength, organizedDays, hiddenPlaces, research }) {
+  const skeletonBlock = buildSkeletonBlock(organizedDays);
+  const hiddenBlock   = buildHiddenBlock(hiddenPlaces);
   const researchBlock = buildResearchBlock(research);
 
   const prompt = `You are Offpath — a travel planner with exceptional taste. You write like a well-travelled local friend texting recommendations: warm, specific, opinionated, never generic.
 
-Generate a complete trip plan as a JSON object for:
+I have ALREADY chosen the real places for this trip using verified data. Your job is to write the TEXT FIELDS ONLY. Do NOT change any place names, coordinates, or structure.
+
+Trip details:
 - Destination: ${destination}
 - Travel style: ${travelStyle}
 - Traveler group: ${travelerGroup}
 - Trip length: ${tripLength} days
-${venueBlock}${researchBlock}
+
+HERE IS THE PRE-BUILT ITINERARY WITH REAL VERIFIED PLACES:
+${skeletonBlock}
+HERE ARE THE HIDDEN PLACES (also real, verified):
+${hiddenBlock}
+${researchBlock}
 Return ONLY valid JSON matching this exact structure (no markdown, no commentary):
 {
-  "destinationCity": "string — the city name only",
-  "destinationCountry": "string — the country name only, e.g. Albania not Japan",
+  "destinationCity": "${destination}",
+  "destinationCountry": "REAL country name for ${destination}",
   "intro": "2-sentence intro, opinionated and specific to this city and traveler type",
   "shareLine": "one punchy sentence they would send to friends",
   "previewDays": [first day only — same structure as fullDays],
@@ -28,14 +38,14 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
     {
       "id": "uuid-v4",
       "dayNumber": 1,
-      "title": "Day 1 — give it an evocative name, not just Day 1",
+      "title": "Day 1 — give it an evocative name",
       "mood": "short evocative phrase capturing the day's feel",
       "summary": "one sentence about this day's energy",
       "moments": [
         {
           "id": "uuid-v4",
-          "timeLabel": "09:00",
-          "title": "REAL venue name from the list above (or a real known place if list is empty)",
+          "timeLabel": "KEEP THE EXACT TIME FROM THE SKELETON",
+          "title": "KEEP THE EXACT PLACE NAME FROM THE SKELETON — DO NOT CHANGE IT",
           "subtitle": "one line on why this moment works",
           "rationale": "2 sentences of local insight — what makes this worth doing, told like a friend who knows",
           "transitNote": "how to get there from the previous stop",
@@ -47,33 +57,34 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
   "hiddenPlaces": [
     {
       "id": "uuid-v4",
-      "name": "REAL venue name — ideally a cafe, bar, or viewpoint from the list",
-      "neighborhood": "neighborhood name",
+      "name": "KEEP THE EXACT NAME FROM HIDDEN PLACES LIST — DO NOT CHANGE IT",
+      "neighborhood": "KEEP FROM THE LIST",
       "vibe": "2-3 word descriptor",
       "note": "2 sentences — what makes it special, written like insider knowledge",
       "bestTime": "specific time or condition",
-      "coordinate": { "latitude": 0.0, "longitude": 0.0 }
+      "coordinate": { "latitude": KEEP_FROM_LIST, "longitude": KEEP_FROM_LIST }
     }
   ],
   "heroCoordinate": { "latitude": 0.0, "longitude": 0.0 },
   "destinationCoordinate": { "latitude": 0.0, "longitude": 0.0 }
 }
 
-Rules:
-- destinationCountry MUST be the actual country for ${destination} — do not guess
-- Each day must have exactly 3 moments: morning (~09:00), midday (~12:30), evening (~18:45)
+CRITICAL RULES:
+- ALL place names in "title" fields MUST be EXACTLY the names from the skeleton above. Do NOT rename, rephrase, or substitute any place.
+- ALL timeLabels MUST match the skeleton exactly.
+- destinationCountry MUST be the actual country for ${destination}
+- Each day must have exactly 3 moments matching the skeleton
 - fullDays must have exactly ${tripLength} days
 - previewDays must be an array containing only day 1
-- hiddenPlaces must have exactly 4 entries
-- All coordinates must be real GPS coordinates for ${destination}
-- All UUIDs must be unique valid UUID v4 strings
-- Prioritise the real venues provided above — write as if you personally know them
-- Avoid tourist clichés, write with the confidence of someone who actually lives there`;
+- hiddenPlaces must have exactly ${hiddenPlaces.length} entries with EXACT names from the list
+- All coordinates for hidden places must use the EXACT values from the list
+- heroCoordinate and destinationCoordinate must be real GPS coordinates for ${destination}
+- All UUIDs must be unique valid UUID v4 strings`;
 
   const response = await groq.chat.completions.create({
     model:           MODEL,
     messages:        [{ role: 'user', content: prompt }],
-    temperature:     0.75,
+    temperature:     0.65,
     max_tokens:      4096,
     response_format: { type: 'json_object' },
   });
@@ -81,36 +92,33 @@ Rules:
   return JSON.parse(response.choices[0].message.content);
 }
 
-// Builds a formatted venue block to inject into the prompt.
-// Only included when Foursquare returned results.
-function buildVenueBlock(venues) {
-  if (!venues) return '';
-
+// Builds the skeleton block showing real places in their assigned slots
+function buildSkeletonBlock(organizedDays) {
   const lines = [];
-
-  const fmt = (list, label) => {
-    if (!list || list.length === 0) return;
-    lines.push(`\n${label}:`);
-    list.forEach(v => {
-      const loc = v.neighborhood ? ` (${v.neighborhood})` : '';
-      lines.push(`  - ${v.name}${loc}`);
+  organizedDays.forEach(day => {
+    lines.push(`\nDAY ${day.dayNumber}:`);
+    day.moments.forEach(m => {
+      const p = m.place;
+      const loc = p.neighborhood ? ` (${p.neighborhood})` : '';
+      const cat = p.category ? ` [${p.category}]` : '';
+      lines.push(`  ${m.timeLabel} — ${p.name}${loc}${cat}`);
+      if (p.latitude && p.longitude) {
+        lines.push(`    GPS: ${p.latitude}, ${p.longitude}`);
+      }
     });
-  };
+  });
+  return lines.join('\n');
+}
 
-  fmt(venues.dining,    'RESTAURANTS & BARS — use for lunch and dinner moments');
-  fmt(venues.cafes,     'CAFÉS — use for morning moments');
-  fmt(venues.culture,   'CULTURE & ARTS — use for cultural moments');
-  fmt(venues.landmarks, 'LANDMARKS & OUTDOORS — use for daytime exploration');
-  fmt(venues.nightlife, 'NIGHTLIFE — use for evening moments');
-
-  if (lines.length === 0) return '';
-
-  return `
-REAL VERIFIED VENUES FROM FOURSQUARE FOR ${venues.city || 'THIS DESTINATION'}:
-Use these actual places in the itinerary. Write about them as if you know them personally.
-${lines.join('\n')}
-
-`;
+// Builds the hidden places block
+function buildHiddenBlock(hiddenPlaces) {
+  if (!hiddenPlaces || hiddenPlaces.length === 0) return '';
+  const lines = ['\nHIDDEN PLACES (use EXACTLY these names and coordinates):'];
+  hiddenPlaces.forEach(p => {
+    const loc = p.neighborhood ? ` (${p.neighborhood})` : '';
+    lines.push(`  - ${p.name}${loc} — GPS: ${p.latitude}, ${p.longitude}`);
+  });
+  return lines.join('\n');
 }
 
 // Formats Tavily research into a block the model can use to write
