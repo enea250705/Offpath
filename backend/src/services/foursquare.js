@@ -31,8 +31,8 @@ async function getPlaces(cityName, categoryId, limit = 15) {
       near:       cityName,
       categories: categoryId,
       limit:      String(limit),
-      sort:       'RATING', // Fetch the absolute highest-rated local spots instead of generic relevance
-      fields:     'name,location,categories,geocodes,rating,popularity,hours',
+      sort:       'RELEVANCE',
+      fields:     'name,location,categories,geocodes',
     });
 
     const res = await fetch(
@@ -55,8 +55,8 @@ async function getPlaces(cityName, categoryId, limit = 15) {
       category:     r.categories?.[0]?.name || '',
       latitude:     r.geocodes?.main?.latitude || 0,
       longitude:    r.geocodes?.main?.longitude || 0,
-      rating:       r.rating || 0,
-      popularity:   r.popularity || 0,
+      rating:       0,
+      popularity:   0,
     }));
   } catch {
     return [];
@@ -75,10 +75,8 @@ async function getDestinationVenues(cityName) {
     getPlaces(cityName, CATEGORIES.market,    4),
   ]);
 
-  // Filter out tourist traps (very high popularity = crowded/generic)
-  const filter = list => list
-    .filter(v => v.popularity < 0.95)
-    .sort((a, b) => b.rating - a.rating);
+  // Keep all results (rating/popularity not available on free tier)
+  const filter = list => list;
 
   return {
     dining:    filter(dining),
@@ -168,10 +166,6 @@ function organizeDays(venues, tripLength) {
 function pickHiddenPlaces(venues, usedNames, count = 4) {
   const all = Object.values(venues).flat();
   const unused = all.filter(v => !usedNames.has(v.name));
-  
-  // Sort to find the places that are highly rated but have the lowest popularity (hidden gems)
-  // We want the most "anti-tourist" places possible that are still good.
-  unused.sort((a, b) => a.popularity - b.popularity);
   
   return unused.slice(0, count);
 }
