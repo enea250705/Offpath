@@ -24,14 +24,14 @@ const SLOT_MAP = {
   nightlife: 'evening',
 };
 
-async function getPlaces(cityName, categoryId, limit = 6) {
+async function getPlaces(cityName, categoryId, limit = 15) {
   if (!FSQ_KEY) return [];
   try {
     const params = new URLSearchParams({
       near:       cityName,
       categories: categoryId,
       limit:      String(limit),
-      sort:       'RELEVANCE',
+      sort:       'RATING', // Fetch the absolute highest-rated local spots instead of generic relevance
       fields:     'name,location,categories,geocodes,rating,popularity,hours',
     });
 
