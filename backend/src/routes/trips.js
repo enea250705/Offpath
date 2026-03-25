@@ -1,5 +1,5 @@
 const express = require('express');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { generateTrip } = require('../services/groq');
 const { getDestinationVenues, organizeDays, pickHiddenPlaces } = require('../services/foursquare');
 const { researchVenues } = require('../services/tavily');
@@ -9,8 +9,8 @@ const router = express.Router();
 
 // POST /v1/trips/full
 // Body: { destination, travelStyle, travelerGroup, tripLength }
-// Auth: Bearer token (required)
-router.post('/full', requireAuth, async (req, res) => {
+// Auth: optional — trip is saved if logged in, generated anonymously if not
+router.post('/full', optionalAuth, async (req, res) => {
   const { destination, travelStyle, travelerGroup, tripLength } = req.body;
 
   if (!destination || !travelStyle || !travelerGroup || !tripLength) {
@@ -38,12 +38,12 @@ router.post('/full', requireAuth, async (req, res) => {
       organizedDays, hiddenPlaces, research,
     });
 
-    // Persist the trip
+    // Persist the trip (user_id may be null for anonymous generation)
     const result = await pool.query(
       `INSERT INTO trips (user_id, destination_city, destination_country, intro, share_line, payload)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
       [
-        req.user.id,
+        req.user?.id ?? null,
         plan.destinationCity,
         plan.destinationCountry,
         plan.intro,

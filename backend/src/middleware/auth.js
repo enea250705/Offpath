@@ -13,4 +13,15 @@ function requireAuth(req, res, next) {
   }
 }
 
-module.exports = { requireAuth };
+// Attaches req.user if a valid token is present, but never blocks the request
+function optionalAuth(req, res, next) {
+  const header = req.headers.authorization;
+  if (header && header.startsWith('Bearer ')) {
+    try {
+      req.user = jwt.verify(header.slice(7), process.env.JWT_SECRET);
+    } catch {}
+  }
+  next();
+}
+
+module.exports = { requireAuth, optionalAuth };
