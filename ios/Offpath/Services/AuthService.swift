@@ -24,12 +24,7 @@ nonisolated private struct AuthResponse: Codable, Sendable {
 final class AuthService {
     private let baseURLString: String = Config.EXPO_PUBLIC_RORK_AUTH_URL
 
-    // Custom session: disables HTTP/3 to avoid Render QUIC framing errors.
-    private static let session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.assumesHTTP3Capable = false
-        return URLSession(configuration: config)
-    }()
+    private static let session: URLSession = URLSession(configuration: .default)
 
     // Retries up to 3 times on transient errors (QUIC drops, Render cold-start resets).
     private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
