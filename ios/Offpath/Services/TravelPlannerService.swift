@@ -23,22 +23,23 @@ final class TravelPlannerService {
 
     private static let session: URLSession = URLSession(configuration: .default)
 
-    // Retries up to 3 times on transient errors (QUIC drops, Render cold-start resets).
+    // Retries up to 3 times on any transient URLError.
+    // Permanent failures (no internet, cancelled, bad URL) are thrown immediately.
     private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        var delay: UInt64 = 800_000_000 // 0.8s
+        let permanent: Set<URLError.Code> = [.notConnectedToInternet, .cancelled, .unsupportedURL]
+        var delay: UInt64 = 800_000_000
+        var lastError: URLError = URLError(.unknown)
         for attempt in 1...3 {
             do {
                 return try await Self.session.data(for: request)
             } catch let error as URLError {
-                let isTransient = error.code == .networkConnectionLost
-                    || error.code == .cannotConnectToHost
-                    || error.code.rawValue == -1017
-                guard isTransient, attempt < 3 else { throw error }
+                lastError = error
+                if permanent.contains(error.code) || attempt == 3 { throw error }
                 try await Task.sleep(nanoseconds: delay)
                 delay *= 2
             }
         }
-        fatalError("unreachable")
+        throw lastError
     }
 
     // Token is set after auth so the service can attach it to requests
