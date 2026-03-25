@@ -251,8 +251,10 @@ final class OffpathViewModel {
                 errorMessage = "Wrong password. Try again or create a new account."
             case .timedOut:
                 errorMessage = "The server is waking up — this can take up to a minute on first load. Try again in a moment."
-            case .notConnectedToInternet, .networkConnectionLost:
+            case .notConnectedToInternet:
                 errorMessage = "No internet connection. Check your connection and try again."
+            case .networkConnectionLost:
+                errorMessage = "Couldn't reach the server. Try again in a moment."
             default:
                 errorMessage = "Couldn't reach the server. Try again in a moment."
             }
