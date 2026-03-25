@@ -21,15 +21,29 @@ final class TravelPlannerService {
     private let geocoder: CLGeocoder = CLGeocoder()
     private let foursquare = FoursquareService()
 
-    // Force HTTP/1.1 or HTTP/2 — avoids Render's HTTP/3 (QUIC) framing errors on simulators.
+    // Custom session: disables HTTP/3 to avoid Render QUIC framing errors.
     private static let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.assumesHTTP3Capable = false
         return URLSession(configuration: config)
     }()
 
+    // Retries up to 3 times on transient errors (QUIC drops, Render cold-start resets).
     private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        try await Self.session.data(for: request)
+        var delay: UInt64 = 800_000_000 // 0.8s
+        for attempt in 1...3 {
+            do {
+                return try await Self.session.data(for: request)
+            } catch let error as URLError {
+                let isTransient = error.code == .networkConnectionLost
+                    || error.code == .cannotConnectToHost
+                    || error.code.rawValue == -1017
+                guard isTransient, attempt < 3 else { throw error }
+                try await Task.sleep(nanoseconds: delay)
+                delay *= 2
+            }
+        }
+        fatalError("unreachable")
     }
 
     // Token is set after auth so the service can attach it to requests
