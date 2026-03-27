@@ -74,16 +74,19 @@ async function getPlaces(cityName, placeType, limit = 15) {
 
 // Fetch real venues across all relevant categories for a destination city.
 async function getDestinationVenues(cityName) {
-  const [dining, cafes, culture, landmarks, nightlife, markets] = await Promise.all([
-    getPlaces(cityName, CATEGORY_TYPES.dining,    8),
-    getPlaces(cityName, CATEGORY_TYPES.cafe,      6),
-    getPlaces(cityName, CATEGORY_TYPES.culture,   6),
-    getPlaces(cityName, CATEGORY_TYPES.landmark,  6),
-    getPlaces(cityName, CATEGORY_TYPES.nightlife, 6),
-    getPlaces(cityName, CATEGORY_TYPES.market,    4),
+  // Increased limits to ensure we don't run out of unused places for smaller cities
+  const [dining, cafes, culture, landmarks, nightlife, markets, hidden] = await Promise.all([
+    getPlaces(cityName, CATEGORY_TYPES.dining,    12),
+    getPlaces(cityName, CATEGORY_TYPES.cafe,      10),
+    getPlaces(cityName, CATEGORY_TYPES.culture,   10),
+    getPlaces(cityName, CATEGORY_TYPES.landmark,  8),
+    getPlaces(cityName, CATEGORY_TYPES.nightlife, 10),
+    getPlaces(cityName, CATEGORY_TYPES.market,    8),
+    // Extra fetch specifically tailored for local/offbeaten spots
+    getPlaces(cityName, 'local favorite', 10),
   ]);
 
-  return { dining, cafes, culture, landmarks, nightlife, markets };
+  return { dining, cafes, culture, landmarks, nightlife, markets, hidden };
 }
 
 // Haversine distance in km between two coordinate pairs
@@ -157,18 +160,43 @@ function organizeDays(venues, tripLength) {
   return days;
 }
 
-// Pick hidden gems: lower-rated but uncrowded venues not already in the itinerary.
+// Pick hidden gems: lower popularity but 5-star (or very high) rated venues
 function pickHiddenPlaces(venues, usedNames, count = 4) {
   const all    = Object.values(venues).flat();
-  const unused = all.filter(v => !usedNames.has(v.name));
-  // Prefer decent rating but low popularity (true local spots)
-  return unused
-    .filter(v => v.rating >= 3.5 && v.popularity < 0.4)
-    .sort((a, b) => a.popularity - b.popularity)
-    .slice(0, count)
-    .concat(unused.slice(0, count))
-    .filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i)
-    .slice(0, count);
+  
+  // Deduplicate all places by ID to avoid overlapping categories
+  const uniquePlaces = [];
+  const seenIds = new Set();
+  for (const v of all) {
+    if (!seenIds.has(v.name)) {
+      seenIds.add(v.name);
+      uniquePlaces.push(v);
+    }
+  }
+
+  // Filter out places already in the itinerary
+  const unused = uniquePlaces.filter(v => !usedNames.has(v.name));
+  
+  // 1. Ideal Hidden Gems: Not much visited by tourists (popularity < 0.2) but 5-stars (>= 4.6)
+  const trueGems = unused.filter(v => v.rating >= 4.6 && v.popularity < 0.25);
+  
+  // 2. Fallbacks: Good rating, slightly more popularity but still not tourist traps
+  const backups = unused.filter(v => v.rating >= 4.0 && v.popularity < 0.5);
+  
+  // 3. Absolute Fallbacks: Whatever is left
+  const anyLeft = unused;
+
+  // Combine them in order of priority
+  let selected = [
+    ...trueGems.sort((a, b) => b.rating - a.rating), 
+    ...backups.sort((a, b) => a.popularity - b.popularity), 
+    ...anyLeft
+  ];
+
+  // Deduplicate just in case
+  selected = selected.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i);
+
+  return selected.slice(0, count);
 }
 
 module.exports = { getDestinationVenues, organizeDays, pickHiddenPlaces };
