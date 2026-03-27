@@ -11,6 +11,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Tell iOS clients not to upgrade to HTTP/3 — Render's QUIC implementation
+// causes "control stream closed" errors on iOS simulator and some devices.
+app.use((req, res, next) => {
+  res.setHeader('Alt-Svc', 'clear');
+  next();
+});
+
 // Health check — Render uses this to confirm the service is up
 app.get('/health', (req, res) => res.json({ status: 'ok', commit: 'bcce5f1' }));
 
