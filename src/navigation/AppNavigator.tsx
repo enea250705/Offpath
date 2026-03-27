@@ -35,7 +35,6 @@ function TripTabs() {
       }}
     >
       <Tab.Screen name="Plan" component={PlanTab} />
-      <Tab.Screen name="Hidden" component={HiddenTab} />
       <Tab.Screen name="Guide" component={GuideTab} />
       <Tab.Screen name="Map" component={MapTab} />
       <Tab.Screen name="You" component={YouTab} />

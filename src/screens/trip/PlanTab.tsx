@@ -191,10 +191,10 @@ function MomentRow({
           </View>
         )}
 
-        {/* Tap hint */}
-        <Text style={styles.tapHint}>
-          {expanded ? 'Tap to collapse' : 'Tap for details'}
-        </Text>
+        {/* Tap hint chevron */}
+        <View style={{ alignItems: 'center', marginTop: expanded ? 12 : 6, opacity: 0.3 }}>
+          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.white} />
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -364,14 +364,6 @@ export default function PlanTab() {
               </View>
               <Text style={styles.statValue}>{totalPlaces}</Text>
               <Text style={styles.statLabel}>Places</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <View style={styles.statIconWrap}>
-                <Ionicons name="diamond" size={18} color="#34D399" />
-              </View>
-              <Text style={styles.statValue}>{plan.hiddenPlaces?.length || 0}</Text>
-              <Text style={styles.statLabel}>Hidden Gems</Text>
             </View>
           </View>
 
@@ -563,23 +555,26 @@ const styles = StyleSheet.create({
 
   // Day Card
   dayCard: {
-    marginHorizontal: 16, marginBottom: 12,
-    backgroundColor: colors.bgCard, borderRadius: 20,
-    borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
+    marginHorizontal: 16, marginBottom: 16,
+    backgroundColor: '#13151A', borderRadius: 24,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', overflow: 'hidden',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
   },
   dayHeader: {
-    flexDirection: 'row', alignItems: 'center', padding: 18,
+    flexDirection: 'row', alignItems: 'center', padding: 20,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.02)',
   },
   dayBadge: {
-    width: 42, height: 42, borderRadius: 13,
-    justifyContent: 'center', alignItems: 'center', marginRight: 14,
+    width: 46, height: 46, borderRadius: 14,
+    justifyContent: 'center', alignItems: 'center', marginRight: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 6,
   },
   dayBadgeText: {
-    color: colors.white, fontSize: 16, fontWeight: '800',
+    color: colors.white, fontSize: 18, fontWeight: '800',
   },
   dayInfo: { flex: 1 },
   dayTitle: {
-    color: colors.textPrimary, fontSize: 16, fontWeight: '700',
+    color: colors.white, fontSize: 17, fontWeight: '800', letterSpacing: -0.3,
   },
   dayMetaRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3,
@@ -606,26 +601,45 @@ const styles = StyleSheet.create({
   momentsContainer: { paddingHorizontal: 18, paddingBottom: 18 },
   momentRow: { flexDirection: 'row', marginBottom: 16 },
   timelineCol: { width: 24, alignItems: 'center' },
-  timelineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4 },
-  timelineLine: { width: 2, flex: 1, backgroundColor: colors.border, marginTop: 4 },
-  momentContent: { flex: 1, marginLeft: 12 },
+  timelineDot: { 
+    width: 14, height: 14, borderRadius: 7, 
+    marginTop: 24, 
+    borderWidth: 3, borderColor: colors.bg, 
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 3 
+  },
+  timelineLine: { width: 2, flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 4 },
+  
+  momentContent: { 
+    flex: 1, 
+    marginLeft: 12,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
 
   // Time + duration
-  timeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  momentTime: { fontSize: 13, fontWeight: '600' },
-  durationTag: { color: colors.textMuted, fontSize: 12, marginLeft: 6 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  momentTime: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
+  durationTag: { color: colors.textMuted, fontSize: 12, marginLeft: 6, fontWeight: '600' },
 
   // Title + category
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' },
-  momentTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700', flexShrink: 1 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
+  momentTitle: { color: colors.white, fontSize: 17, fontWeight: '800', flexShrink: 1, letterSpacing: -0.3 },
   categoryBadge: {
-    backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 2,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
+    paddingHorizontal: 8, paddingVertical: 4,
   },
-  categoryText: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+  categoryText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   momentSubtitle: {
-    color: colors.textSecondary, fontSize: 13, fontStyle: 'italic', marginBottom: 4,
+    color: colors.textSecondary, fontSize: 14, fontStyle: 'italic', marginBottom: 8,
   },
 
   // Rating + price

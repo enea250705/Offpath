@@ -22,7 +22,7 @@ const TAB_BAR_H = 72;
 const TAB_BAR_MARGIN_H = 20;
 const TAB_BAR_MARGIN_BOTTOM = Platform.OS === 'ios' ? 28 : 16;
 const TAB_BAR_WIDTH = SCREEN_W - TAB_BAR_MARGIN_H * 2;
-const TAB_COUNT = 5;
+const TAB_COUNT = 4;
 const TAB_WIDTH = TAB_BAR_WIDTH / TAB_COUNT;
 const PILL_WIDTH = TAB_WIDTH - 12;
 const PILL_HEIGHT = 44;

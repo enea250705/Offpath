@@ -125,7 +125,7 @@ export default function GuideTab() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.headerLabel}>LOCAL GUIDE</Text>
+            <Text style={styles.headerLabel}>VOYARA</Text>
             <Text style={styles.headerTitle}>Ask anything</Text>
           </View>
           {!isPremium && (
@@ -224,7 +224,7 @@ function MessageBubble({ message }: { message: GuideMessage }) {
         </View>
       )}
       <View style={styles.messageBubbleCol}>
-        {!isUser && <Text style={styles.guideLabel}>Your guide</Text>}
+        {!isUser && <Text style={styles.guideLabel}>Voyara</Text>}
         <View
           style={[
             styles.bubble,
