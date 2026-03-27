@@ -75,7 +75,7 @@ async function getPlaces(cityName, placeType, limit = 15) {
 // Fetch real venues across all relevant categories for a destination city.
 async function getDestinationVenues(cityName) {
   // Increased limits to ensure we don't run out of unused places for smaller cities
-  const [dining, cafes, culture, landmarks, nightlife, markets, hidden] = await Promise.all([
+  const [dining, cafes, culture, landmarks, nightlife, markets, hidden, genericFallback] = await Promise.all([
     getPlaces(cityName, CATEGORY_TYPES.dining,    12),
     getPlaces(cityName, CATEGORY_TYPES.cafe,      10),
     getPlaces(cityName, CATEGORY_TYPES.culture,   10),
@@ -84,9 +84,13 @@ async function getDestinationVenues(cityName) {
     getPlaces(cityName, CATEGORY_TYPES.market,    8),
     // Extra fetch specifically tailored for local/offbeaten spots
     getPlaces(cityName, 'local favorite', 10),
+    // Absolute safety net for small cities to flood the pool with unused places
+    getPlaces(cityName, 'point of interest', 20),
   ]);
 
-  return { dining, cafes, culture, landmarks, nightlife, markets, hidden };
+  const hiddenCombined = [...hidden, ...genericFallback];
+
+  return { dining, cafes, culture, landmarks, nightlife, markets, hidden: hiddenCombined };
 }
 
 // Haversine distance in km between two coordinate pairs
