@@ -58,8 +58,8 @@ Return ONLY valid JSON matching this exact structure (no markdown, no commentary
   "hiddenPlaces": [
     {
       "id": "uuid-v4",
-      "name": "${hiddenPlaces.length > 0 ? 'KEEP THE EXACT NAME FROM HIDDEN PLACES LIST — DO NOT CHANGE IT' : 'Real lesser-known venue name in ' + destination}",
-      "neighborhood": "neighborhood name",
+      "name": "KEEP THE EXACT NAME FROM HIDDEN PLACES LIST — DO NOT CHANGE IT",
+      "neighborhood": "KEEP FROM THE LIST",
       "vibe": "2-3 word descriptor",
       "note": "2 sentences — what makes it special, written like insider knowledge",
       "bestTime": "specific time or condition",
@@ -77,10 +77,8 @@ CRITICAL RULES:
 - Each day must have exactly 3 moments matching the skeleton
 - fullDays must have exactly ${tripLength} days
 - previewDays must be an array containing only day 1
-${hiddenPlaces.length > 0
-  ? `- hiddenPlaces must have exactly ${hiddenPlaces.length} entries with EXACT names from the list\n- All coordinates for hidden places MUST use the EXACT values from the list`
-  : `- hiddenPlaces must have exactly 4 entries — choose real lesser-known local spots in ${destination} that tourists rarely visit. Use accurate real GPS coordinates for each.`
-}
+- hiddenPlaces must have exactly ${hiddenPlaces.length} entries with EXACT names from the list
+- All coordinates for hidden places MUST use the EXACT values from the list
 - All coordinates for moments MUST use the EXACT latitude and longitude values from the skeleton
 - heroCoordinate and destinationCoordinate must be real GPS coordinates for ${destination}
 - All UUIDs must be unique valid UUID v4 strings`;

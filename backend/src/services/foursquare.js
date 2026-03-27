@@ -164,43 +164,25 @@ function organizeDays(venues, tripLength) {
   return days;
 }
 
-// Pick hidden gems: lower popularity but 5-star (or very high) rated venues
+// Pick hidden places: any real venues from the API not already in the itinerary
 function pickHiddenPlaces(venues, usedNames, count = 4) {
-  const all    = Object.values(venues).flat();
-  
-  // Deduplicate all places by ID to avoid overlapping categories
-  const uniquePlaces = [];
-  const seenIds = new Set();
+  const all = Object.values(venues).flat();
+
+  // Deduplicate by name
+  const seen = new Set();
+  const unique = [];
   for (const v of all) {
-    if (!seenIds.has(v.name)) {
-      seenIds.add(v.name);
-      uniquePlaces.push(v);
+    if (!seen.has(v.name)) {
+      seen.add(v.name);
+      unique.push(v);
     }
   }
 
-  // Filter out places already in the itinerary
-  const unused = uniquePlaces.filter(v => !usedNames.has(v.name));
-  
-  // 1. Ideal Hidden Gems: Not much visited by tourists (popularity < 0.2) but 5-stars (>= 4.6)
-  const trueGems = unused.filter(v => v.rating >= 4.6 && v.popularity < 0.25);
-  
-  // 2. Fallbacks: Good rating, slightly more popularity but still not tourist traps
-  const backups = unused.filter(v => v.rating >= 4.0 && v.popularity < 0.5);
-  
-  // 3. Absolute Fallbacks: Whatever is left
-  const anyLeft = unused;
+  // Exclude anything already used in the itinerary
+  const unused = unique.filter(v => !usedNames.has(v.name) && v.name);
 
-  // Combine them in order of priority
-  let selected = [
-    ...trueGems.sort((a, b) => b.rating - a.rating), 
-    ...backups.sort((a, b) => a.popularity - b.popularity), 
-    ...anyLeft
-  ];
-
-  // Deduplicate just in case
-  selected = selected.filter((v, i, arr) => arr.findIndex(x => x.name === v.name) === i);
-
-  return selected.slice(0, count);
+  // Sort by rating descending, take first `count`
+  return unused.sort((a, b) => b.rating - a.rating).slice(0, count);
 }
 
 module.exports = { getDestinationVenues, organizeDays, pickHiddenPlaces };
