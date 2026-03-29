@@ -65,19 +65,18 @@ async function fetchPexels(query: string, perPage = 15): Promise<PexelsPhoto[]> 
  * of the destination city.
  */
 export async function getStoryPhotos(city: string): Promise<(string | null)[]> {
-  // Just search the city name — Pexels returns the most relevant photos
-  // for the actual place when you use simple, direct queries
-  let photos = await fetchPexels(city, 15);
+  // Add positive aesthetic keywords to block noisy random photos (like news/protests)
+  let photos = await fetchPexels(`${city} travel architecture city landmarks`, 15);
 
-  // If not enough results, try with "city" appended
+  // If not enough results, try a slightly broader search but maintain scenery focus
   if (photos.length < 3) {
-    const fallback = await fetchPexels(`${city} city`, 15);
+    const fallback = await fetchPexels(`${city} city view landscape`, 15);
     photos = [...photos, ...fallback];
   }
 
-  // If still not enough, try country-level
+  // If still not enough, try exact city name
   if (photos.length < 3) {
-    const fallback = await fetchPexels(`${city} travel`, 10);
+    const fallback = await fetchPexels(`${city}`, 10);
     photos = [...photos, ...fallback];
   }
 
@@ -99,7 +98,7 @@ export async function getStoryPhotos(city: string): Promise<(string | null)[]> {
 
   return Array.from({ length: 6 }, (_, i) => {
     const photo = unique[i % unique.length];
-    return photo?.src?.portrait || photo?.src?.large || null;
+    return photo?.src?.large || photo?.src?.medium || null;
   });
 }
 
@@ -107,7 +106,7 @@ export async function getStoryPhotos(city: string): Promise<(string | null)[]> {
  * Get a single city photo (for use outside stories)
  */
 export async function getCityPhoto(city: string): Promise<string | null> {
-  const photos = await fetchPexels(city, 5);
+  const photos = await fetchPexels(`${city} travel architecture skyline`, 5);
   if (photos.length === 0) return null;
   return photos[0].src.portrait || photos[0].src.large;
 }

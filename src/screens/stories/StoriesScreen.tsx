@@ -16,6 +16,7 @@ import { useApp } from '../../store/AppContext';
 import { colors, typography, spacing, radius } from '../../theme';
 import { getStoryPhotos, isPexelsConfigured } from '../../services/pexels';
 
+
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const SLIDE_DURATION = 3500;
 const NUM_SLIDES = 6;
@@ -33,8 +34,9 @@ const FALLBACK_GRADIENTS: [string, string, string][] = [
 export default function StoriesScreen() {
   const { state, actions } = useApp();
   const [current, setCurrent] = useState(0);
-  const [photos, setPhotos] = useState<(string | null)[]>(new Array(NUM_SLIDES).fill(null));
-  const [photosLoading, setPhotosLoading] = useState(true);
+  const [photos, setPhotos] = useState<(string | null)[]>(
+    state.storyPhotos ?? new Array(NUM_SLIDES).fill(null),
+  );
   const progressAnims = useRef(
     Array.from({ length: NUM_SLIDES }, () => new Animated.Value(0)),
   ).current;
@@ -49,26 +51,11 @@ export default function StoriesScreen() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const city = plan?.destinationCity || 'travel';
 
-  // ─── Load photos from Pexels ────────────────────────────
+  // ─── Photos: use prefetched from state, fall back to fetch ─
   useEffect(() => {
-    if (!isPexelsConfigured()) {
-      console.log('[Stories] Pexels not configured, using gradients');
-      setPhotosLoading(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        console.log('[Stories] Fetching Pexels photos for:', city);
-        const results = await getStoryPhotos(city);
-        setPhotos(results);
-        console.log('[Stories] Got', results.filter(Boolean).length, 'photos');
-      } catch (err) {
-        console.warn('[Stories] Photo fetch failed:', err);
-      } finally {
-        setPhotosLoading(false);
-      }
-    })();
+    if (state.storyPhotos) return; // already prefetched in GeneratingScreen
+    if (!isPexelsConfigured()) return;
+    getStoryPhotos(city).then(setPhotos).catch(() => {});
   }, [city]);
 
   // Stagger text entrance

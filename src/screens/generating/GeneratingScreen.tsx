@@ -9,6 +9,7 @@ import {
   Animated,
   Dimensions,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ import MapView, { Polyline, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useApp } from '../../store/AppContext';
 import { api, pickSurpriseCity } from '../../services/api';
+import { getStoryPhotos, isPexelsConfigured } from '../../services/pexels';
 import { colors } from '../../theme';
 import { LocationCoordinate } from '../../types';
 
@@ -330,6 +332,16 @@ export default function GeneratingScreen() {
           setRealDestCoord(plan.destinationCoordinate);
         } else if (plan?.heroCoordinate) {
           setRealDestCoord(plan.heroCoordinate);
+        }
+
+        // Prefetch story photos while animation finishes — StoriesScreen gets them instantly
+        if (isPexelsConfigured() && plan?.destinationCity) {
+          getStoryPhotos(plan.destinationCity).then(photos => {
+            if (!cancelled) {
+              actions.setStoryPhotos(photos);
+              photos.forEach(url => { if (url) Image.prefetch(url).catch(() => {}); });
+            }
+          }).catch(() => {});
         }
 
         await actions.setPlan(plan);

@@ -19,6 +19,7 @@ interface AppState {
   isPremium: boolean;
   sessionAnswers: SessionAnswers;
   isRestoring: boolean;
+  storyPhotos: (string | null)[] | null;
 }
 
 const initialAnswers: SessionAnswers = {
@@ -34,6 +35,7 @@ const initialState: AppState = {
   isPremium: false,
   sessionAnswers: initialAnswers,
   isRestoring: true,
+  storyPhotos: null,
 };
 
 // ─── Actions ───────────────────────────────────────────────
@@ -45,6 +47,7 @@ type Action =
   | { type: 'ADD_GUIDE_MESSAGE'; message: GuideMessage }
   | { type: 'SET_PREMIUM'; isPremium: boolean }
   | { type: 'UPDATE_ANSWERS'; answers: Partial<SessionAnswers> }
+  | { type: 'SET_STORY_PHOTOS'; photos: (string | null)[] }
   | { type: 'RESET_SESSION' }
   | { type: 'RESTORE_DONE' };
 
@@ -67,6 +70,8 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         sessionAnswers: { ...state.sessionAnswers, ...action.answers },
       };
+    case 'SET_STORY_PHOTOS':
+      return { ...state, storyPhotos: action.photos };
     case 'RESET_SESSION':
       return {
         ...initialState,
@@ -91,6 +96,7 @@ interface AppContextValue {
     updateAnswers: (a: Partial<SessionAnswers>) => void;
     addGuideMessage: (msg: GuideMessage) => void;
     setGuideMessages: (msgs: GuideMessage[]) => void;
+    setStoryPhotos: (photos: (string | null)[]) => void;
   };
 }
 
@@ -170,6 +176,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setGuideMessages: useCallback(
       (msgs: GuideMessage[]) => dispatch({ type: 'SET_GUIDE_MESSAGES', messages: msgs }),
+      [],
+    ),
+
+    setStoryPhotos: useCallback(
+      (photos: (string | null)[]) => dispatch({ type: 'SET_STORY_PHOTOS', photos }),
       [],
     ),
   };
