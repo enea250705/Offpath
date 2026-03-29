@@ -26,7 +26,7 @@ function generateCode() {
 
 async function sendVerificationEmail(email, code) {
   await resend.emails.send({
-    from: 'Offpath <onboarding@resend.dev>',
+    from: 'Offpath <info@auditmylanding.com>',
     to: email,
     subject: 'Your Offpath verification code',
     html: `
