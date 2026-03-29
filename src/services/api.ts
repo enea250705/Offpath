@@ -160,6 +160,16 @@ export const api = {
     return res as AuthUser;
   },
 
+  // ── Places ────────────────────────────────────────────────
+  async cityAutocomplete(q: string): Promise<{ city: string; country: string; countryCode: string }[]> {
+    if (q.trim().length < 2) return [];
+    return fetchWithRetry(
+      `${BASE_URL}/v1/places/city-autocomplete?q=${encodeURIComponent(q)}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      10_000,
+    );
+  },
+
   // ── Trip ──────────────────────────────────────────────────
   async generateTrip(answers: SessionAnswers): Promise<TripPlan> {
     const headers = { 'Content-Type': 'application/json' } as Record<string, string>;

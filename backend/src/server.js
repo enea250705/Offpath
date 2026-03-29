@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const { pool, initDb } = require('./db');
 
-const authRoutes  = require('./routes/auth');
-const tripsRoutes = require('./routes/trips');
-const guideRoutes = require('./routes/guide');
+const authRoutes   = require('./routes/auth');
+const tripsRoutes  = require('./routes/trips');
+const guideRoutes  = require('./routes/guide');
+const placesRoutes = require('./routes/places');
 
 const app = express();
 
@@ -54,9 +55,10 @@ app.get('/diag/places', async (req, res) => {
 
 
 // Routes
-app.use('/v1/auth',  authRoutes);
-app.use('/v1/trips', tripsRoutes);
-app.use('/v1/guide', guideRoutes);
+app.use('/v1/auth',   authRoutes);
+app.use('/v1/trips',  tripsRoutes);
+app.use('/v1/guide',  guideRoutes);
+app.use('/v1/places', placesRoutes);
 
 // Start
 const PORT = process.env.PORT || 3000;

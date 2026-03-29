@@ -1,5 +1,5 @@
 // Offpath — Onboarding Screen (4 questions)
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../store/AppContext';
+import { api } from '../../services/api';
 import { colors, typography, spacing, radius } from '../../theme';
 import { DestinationMode, TravelStyle, TravelerGroup } from '../../types';
+
+type CitySuggestion = { city: string; country: string; countryCode: string };
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -41,6 +46,33 @@ export default function OnboardingScreen() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const { sessionAnswers } = state;
+
+  const [suggestions, setSuggestions] = useState<CitySuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const q = sessionAnswers.destination;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!q || q.length < 2) { setSuggestions([]); return; }
+    debounceRef.current = setTimeout(async () => {
+      setSuggestionsLoading(true);
+      try {
+        const results = await api.cityAutocomplete(q);
+        setSuggestions(results);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [sessionAnswers.destination]);
+
+  const selectSuggestion = (s: CitySuggestion) => {
+    actions.updateAnswers({ destination: s.city });
+    setSuggestions([]);
+  };
 
   const animateTransition = useCallback((direction: 1 | -1, cb: () => void) => {
     Animated.parallel([
@@ -171,9 +203,39 @@ export default function OnboardingScreen() {
               onChangeText={(t) => actions.updateAnswers({ destination: t })}
               autoCapitalize="words"
               returnKeyType="done"
+              autoCorrect={false}
             />
+            {suggestionsLoading && (
+              <ActivityIndicator size="small" color={colors.textMuted} style={{ marginLeft: 8 }} />
+            )}
           </View>
-          <Text style={styles.inputHint}>Enter city name, e.g. "Tokyo" or "Lisbon"</Text>
+
+          {suggestions.length > 0 && (
+            <View style={styles.suggestionsBox}>
+              {suggestions.map((s, i) => (
+                <TouchableOpacity
+                  key={`${s.city}-${s.country}-${i}`}
+                  style={[styles.suggestionRow, i < suggestions.length - 1 && styles.suggestionBorder]}
+                  onPress={() => selectSuggestion(s)}
+                  activeOpacity={0.7}
+                >
+                  {s.countryCode ? (
+                    <Image
+                      source={{ uri: `https://flagcdn.com/w40/${s.countryCode}.png` }}
+                      style={styles.flagImage}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={[styles.flagImage, styles.flagPlaceholder]} />
+                  )}
+                  <View style={styles.suggestionText}>
+                    <Text style={styles.suggestionCity}>{s.city}</Text>
+                    <Text style={styles.suggestionCountry}>{s.country}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       );
     }
@@ -542,6 +604,46 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.md,
     paddingVertical: 18,
     letterSpacing: 0,
+  },
+  suggestionsBox: {
+    backgroundColor: colors.bgCard,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  suggestionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  flagImage: {
+    width: 28,
+    height: 20,
+    borderRadius: 3,
+    marginRight: 12,
+  },
+  flagPlaceholder: {
+    backgroundColor: colors.bgElevated,
+  },
+  suggestionText: {
+    flex: 1,
+  },
+  suggestionCity: {
+    color: colors.textPrimary,
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.semibold,
+  },
+  suggestionCountry: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    marginTop: 1,
   },
   inputHint: {
     color: colors.textMuted,
