@@ -125,16 +125,20 @@ export default function GuideTab() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Text style={styles.headerLabel}>VOYARA</Text>
-            <Text style={styles.headerTitle}>Ask anything</Text>
-          </View>
-          {!isPremium && (
-            <View style={styles.counterBadge}>
-              <Text style={styles.counterText}>
-                {Math.max(0, messagesRemaining)} left
-              </Text>
+            <VoyaraAvatar size={42} />
+            <View style={styles.headerText}>
+              <Text style={styles.headerName}>Voyara</Text>
+              <View style={styles.headerOnlineRow}>
+                <View style={styles.onlineDot} />
+                <Text style={styles.headerSub}>Your local guide</Text>
+              </View>
             </View>
-          )}
+          </View>
+          <View style={styles.counterBadge}>
+            <Text style={styles.counterText}>
+              {isPremium ? 'Unlimited' : `${Math.max(0, messagesRemaining)} left`}
+            </Text>
+          </View>
         </View>
 
         {/* Messages */}
@@ -149,8 +153,8 @@ export default function GuideTab() {
           ))}
           {sending && (
             <View style={styles.typingIndicator}>
-              <View style={styles.avatarCircle}>
-                <Ionicons name="compass" size={16} color={colors.white} />
+              <View style={styles.avatarWrap}>
+                <VoyaraAvatar size={32} />
               </View>
               <View style={styles.typingDots}>
                 <ActivityIndicator size="small" color={colors.accent} />
@@ -213,14 +217,76 @@ export default function GuideTab() {
   );
 }
 
+// ─── Voyara Avatar ────────────────────────────────────────
+
+function VoyaraAvatar({ size = 36 }: { size?: number }) {
+  const ringSize = size + 4;
+  const innerSize = size - 2;
+  return (
+    <View style={{ width: ringSize, height: ringSize }}>
+      {/* Outer glow */}
+      <View style={{
+        position: 'absolute',
+        width: ringSize + 6,
+        height: ringSize + 6,
+        borderRadius: (ringSize + 6) / 2,
+        top: -3,
+        left: -3,
+        backgroundColor: '#F97316',
+        opacity: 0.12,
+      }} />
+      {/* Gradient ring */}
+      <LinearGradient
+        colors={['#F97316', '#A855F7', '#3B82F6']}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          width: ringSize,
+          height: ringSize,
+          borderRadius: ringSize / 2,
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        {/* Dark inner fill */}
+        <LinearGradient
+          colors={['#1A0D2E', '#0D1525']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            width: innerSize,
+            height: innerSize,
+            borderRadius: innerSize / 2,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          {/* Compass icon */}
+          <Ionicons name="compass" size={size * 0.46} color="#F97316" />
+          {/* Tiny north dot */}
+          <View style={{
+            position: 'absolute',
+            top: size * 0.08,
+            width: 3,
+            height: 3,
+            borderRadius: 1.5,
+            backgroundColor: '#F97316',
+            opacity: 0.8,
+          }} />
+        </LinearGradient>
+      </LinearGradient>
+    </View>
+  );
+}
+
 function MessageBubble({ message }: { message: GuideMessage }) {
   const isUser = message.role === 'user';
 
   return (
     <View style={[styles.messageRow, isUser && styles.messageRowUser]}>
       {!isUser && (
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarText}>🧭</Text>
+        <View style={styles.avatarWrap}>
+          <VoyaraAvatar size={32} />
         </View>
       )}
       <View style={styles.messageBubbleCol}>
@@ -258,7 +324,7 @@ const styles = StyleSheet.create({
   // Header
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 60,
     paddingHorizontal: 20,
@@ -266,18 +332,35 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  headerLeft: {},
-  headerLabel: {
-    color: colors.accent,
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 2,
-    marginBottom: 4,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  headerTitle: {
+  headerText: {
+    gap: 3,
+  },
+  headerName: {
     color: colors.textPrimary,
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  headerOnlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22C55E',
+  },
+  headerSub: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: '500',
   },
   counterBadge: {
     backgroundColor: colors.accentMuted,
@@ -307,18 +390,9 @@ const styles = StyleSheet.create({
   messageRowUser: {
     justifyContent: 'flex-end',
   },
-  avatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.info,
-    justifyContent: 'center',
-    alignItems: 'center',
+  avatarWrap: {
     marginRight: 10,
     marginTop: 18,
-  },
-  avatarText: {
-    fontSize: 16,
   },
   messageBubbleCol: {
     maxWidth: '75%',
@@ -388,6 +462,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: typography.sizes.base,
     maxHeight: 100,
+    letterSpacing: 0,
     borderWidth: 1,
     borderColor: colors.border,
     marginRight: 10,

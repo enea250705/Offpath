@@ -509,6 +509,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     borderWidth: 1,
     borderColor: colors.border,
+    letterSpacing: 0,
   },
   codeInput: {
     fontSize: 24,

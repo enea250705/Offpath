@@ -541,6 +541,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: typography.sizes.md,
     paddingVertical: 18,
+    letterSpacing: 0,
   },
   inputHint: {
     color: colors.textMuted,
