@@ -51,6 +51,8 @@ async function initDb() {
       expires_at TIMESTAMPTZ NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    ALTER TABLE verification_codes ADD COLUMN IF NOT EXISTS payload TEXT;
   `);
 
   console.log('Database ready');
