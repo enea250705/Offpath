@@ -148,6 +148,20 @@ const darkMapStyle = [
 // ─── Main Component ────────────────────────────────────────
 export default function GeneratingScreen() {
   const { state, actions } = useApp();
+
+  // Resolve surprise city synchronously before any effects so both
+  // the animation geocoding and the API call use the exact same city.
+  const resolvedAnswers = useMemo(() => {
+    const a = state.sessionAnswers;
+    const isSurprise =
+      !a.destination?.trim() ||
+      a.destination === 'suggest' ||
+      a.destinationMode === 'suggest';
+    if (!isSurprise) return a;
+    const city = pickSurpriseCity(a);
+    return { ...a, destination: city, destinationMode: 'know' as const };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [msgIndex, setMsgIndex] = useState(0);
   const [apiDone, setApiDone] = useState(false);
   const [animDone, setAnimDone] = useState(false);
@@ -189,22 +203,8 @@ export default function GeneratingScreen() {
         return DEFAULT_ORIGIN;
       })();
 
-      // 2) Resolve destination — for surprise mode pick the city upfront
-      //    so the animation flies to the real city, not a placeholder.
-      const isSurprise =
-        !state.sessionAnswers.destination?.trim() ||
-        state.sessionAnswers.destination === 'suggest' ||
-        state.sessionAnswers.destinationMode === 'suggest';
-
-      const destName = isSurprise
-        ? pickSurpriseCity(state.sessionAnswers)
-        : state.sessionAnswers.destination?.trim();
-
-      // Store picked city so generateTrip uses the same one (not re-random)
-      if (isSurprise && destName) {
-        actions.updateAnswers({ destination: destName, destinationMode: 'know' });
-      }
-
+      // 2) Geocode the resolved destination (surprise city already picked above)
+      const destName = resolvedAnswers.destination?.trim();
       const destPromise = destName ? geocodeCity(destName) : Promise.resolve(DEFAULT_DEST);
 
       const [resolvedOrigin, resolvedDest] = await Promise.all([originPromise, destPromise]);
@@ -320,7 +320,7 @@ export default function GeneratingScreen() {
     (async () => {
       try {
         console.log('[GEN] Starting trip generation...');
-        const plan = await api.generateTrip(state.sessionAnswers);
+        const plan = await api.generateTrip(resolvedAnswers);
         if (cancelled) return;
 
         console.log('[GEN] Trip generated:', plan?.destinationCity);
@@ -438,7 +438,7 @@ export default function GeneratingScreen() {
           {/* Destination heading */}
           <Text style={styles.buildingLabel}>Crafting your trip to</Text>
           <Text style={styles.buildingCity}>
-            {state.sessionAnswers.destination || 'your destination'}
+            {resolvedAnswers.destination || 'your destination'}
           </Text>
 
           {/* Step list */}
