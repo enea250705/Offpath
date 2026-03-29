@@ -8,11 +8,14 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import MapView, { Polyline, Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useApp } from '../../store/AppContext';
-import { api } from '../../services/api';
+import { api, pickSurpriseCity } from '../../services/api';
 import { colors } from '../../theme';
 import { LocationCoordinate } from '../../types';
 
@@ -186,11 +189,23 @@ export default function GeneratingScreen() {
         return DEFAULT_ORIGIN;
       })();
 
-      // 2) Geocode destination (or use default for surprise)
-      const destName = state.sessionAnswers.destination?.trim();
-      const destPromise = destName && destName !== 'suggest'
-        ? geocodeCity(destName)
-        : Promise.resolve(DEFAULT_DEST);
+      // 2) Resolve destination — for surprise mode pick the city upfront
+      //    so the animation flies to the real city, not a placeholder.
+      const isSurprise =
+        !state.sessionAnswers.destination?.trim() ||
+        state.sessionAnswers.destination === 'suggest' ||
+        state.sessionAnswers.destinationMode === 'suggest';
+
+      const destName = isSurprise
+        ? pickSurpriseCity(state.sessionAnswers)
+        : state.sessionAnswers.destination?.trim();
+
+      // Store picked city so generateTrip uses the same one (not re-random)
+      if (isSurprise && destName) {
+        actions.updateAnswers({ destination: destName, destinationMode: 'know' });
+      }
+
+      const destPromise = destName ? geocodeCity(destName) : Promise.resolve(DEFAULT_DEST);
 
       const [resolvedOrigin, resolvedDest] = await Promise.all([originPromise, destPromise]);
 
@@ -415,18 +430,43 @@ export default function GeneratingScreen() {
 
       {/* Bottom content overlay */}
       <View style={styles.bottomOverlay}>
-        <View style={styles.bottomFade} />
-        <View style={styles.bottomContent}>
-          <Animated.Text style={[styles.loadingMsg, { opacity: msgOpacity }]}>
-            {LOADING_MESSAGES[msgIndex]}
-          </Animated.Text>
-          <View style={styles.dots}>
-            {LOADING_MESSAGES.map((_, i) => (
-              <View
-                key={i}
-                style={[styles.dot, i === msgIndex && styles.dotActive]}
-              />
-            ))}
+        <LinearGradient
+          colors={['transparent', 'rgba(13,17,23,0.9)', '#0d1117']}
+          style={styles.bottomFade}
+        />
+        <View style={styles.bottomCard}>
+          {/* Destination heading */}
+          <Text style={styles.buildingLabel}>Crafting your trip to</Text>
+          <Text style={styles.buildingCity}>
+            {state.sessionAnswers.destination || 'your destination'}
+          </Text>
+
+          {/* Step list */}
+          <View style={styles.stepsList}>
+            {LOADING_MESSAGES.map((msg, i) => {
+              const isDone = i < msgIndex;
+              const isActive = i === msgIndex;
+              return (
+                <View key={i} style={styles.stepRow}>
+                  <View style={styles.stepIcon}>
+                    {isDone ? (
+                      <Ionicons name="checkmark-circle" size={16} color="#22C55E" />
+                    ) : isActive ? (
+                      <ActivityIndicator size="small" color="#F97316" />
+                    ) : (
+                      <View style={styles.stepDot} />
+                    )}
+                  </View>
+                  <Text style={[
+                    styles.stepText,
+                    isDone && styles.stepDone,
+                    isActive && styles.stepActive,
+                  ]}>
+                    {msg}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         </View>
       </View>
@@ -472,24 +512,70 @@ const styles = StyleSheet.create({
   planeEmoji: { fontSize: 22 },
 
   // Bottom
-  bottomOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 180 },
+  bottomOverlay: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+  },
   bottomFade: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(13,17,23,0.85)',
-    // Gives a scrim for legibility
+    position: 'absolute', top: -80, left: 0, right: 0, bottom: 0,
   },
-  bottomContent: {
-    flex: 1, justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 60,
+  bottomCard: {
+    marginHorizontal: 16,
+    marginBottom: 48,
+    backgroundColor: 'rgba(17,19,24,0.92)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  loadingMsg: {
-    color: 'rgba(255,255,255,0.75)', fontSize: 16, fontWeight: '500',
-    marginBottom: 18, letterSpacing: 0.3,
+  buildingLabel: {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
-  dots: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.2)' },
-  dotActive: {
-    width: 12, height: 12, borderRadius: 6, backgroundColor: '#F97316',
-    shadowColor: '#F97316', shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 6,
+  buildingCity: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    marginBottom: 18,
+    textTransform: 'capitalize',
+  },
+  stepsList: {
+    gap: 12,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  stepIcon: {
+    width: 20,
+    alignItems: 'center',
+  },
+  stepDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  stepText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.2)',
+  },
+  stepActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  stepDone: {
+    color: 'rgba(255,255,255,0.3)',
+    textDecorationLine: 'line-through',
   },
 });
