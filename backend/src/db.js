@@ -42,6 +42,15 @@ async function initDb() {
       product_id  TEXT NOT NULL,
       verified_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS verification_codes (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email      TEXT NOT NULL,
+      code       TEXT NOT NULL,
+      payload    TEXT,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
   `);
 
   console.log('Database ready');

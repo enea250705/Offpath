@@ -120,9 +120,21 @@ export const api = {
     password: string;
     displayName?: string;
     mode: 'login' | 'signup';
-  }): Promise<AuthUser> {
-    const res = await fetchWithRetry(
+  }): Promise<{ requiresVerification: true; email: string }> {
+    return fetchWithRetry(
       `${BASE_URL}/v1/auth/email`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      AUTH_TIMEOUT_MS,
+    );
+  },
+
+  async verifyCode(body: { email: string; code: string }): Promise<AuthUser> {
+    const res = await fetchWithRetry(
+      `${BASE_URL}/v1/auth/verify`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

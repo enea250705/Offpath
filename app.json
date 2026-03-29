@@ -15,7 +15,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.offpath.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Offpath uses your location to show your position on the map."
+        "NSLocationWhenInUseUsageDescription": "Offpath uses your location to show your position on the map.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -26,18 +27,30 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.offpath.app",
-      "permissions": ["ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "scheme": "com.offpath.app",
     "plugins": [
       [
         "expo-location",
         {
           "locationWhenInUsePermission": "Offpath uses your location to show your position on the map."
         }
-      ]
-    ]
+      ],
+      "expo-apple-authentication",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c1ec8e56-cc18-43d8-ab60-4f6aeca969e0"
+      }
+    }
   }
 }

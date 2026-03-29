@@ -1,4 +1,4 @@
-// Offpath — Auth Screen (Social + Email)
+// Offpath — Auth Screen
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -14,19 +14,30 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { useApp } from '../../store/AppContext';
-import { api, friendlyError, ApiError } from '../../services/api';
+import { api, friendlyError } from '../../services/api';
 import { colors, typography, spacing, radius } from '../../theme';
 
 type AuthMode = 'signup' | 'login';
+type Step = 'credentials' | 'verify';
 
 export default function AuthScreen() {
   const { state, actions } = useApp();
   const [mode, setMode] = useState<AuthMode>('signup');
+  const [step, setStep] = useState<Step>('credentials');
+
+  // Credentials step
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Verify step
+  const [code, setCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const [loading, setLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState('');
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -41,58 +52,210 @@ export default function AuthScreen() {
     ]).start();
   };
 
+  const startResendCooldown = () => {
+    setResendCooldown(60);
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // ─── Apple Sign-In ─────────────────────────────────────
+  const handleAppleSignIn = async () => {
+    setAppleLoading(true);
+    setError('');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!credential.identityToken) throw new Error('No identity token from Apple');
+      const user = await api.socialAuth({ provider: 'apple', idToken: credential.identityToken });
+      await actions.login(user);
+      actions.setPhase(state.plan ? 'trip' : 'onboarding');
+    } catch (err: any) {
+      if (err.code !== 'ERR_REQUEST_CANCELED') setError(friendlyError(err));
+    } finally {
+      setAppleLoading(false);
+    }
+  };
+
+  // ─── Step 1: submit email + password ──────────────────
   const handleEmailAuth = async () => {
     if (!email.trim() || !password.trim()) {
       setError('Please fill in all fields.');
       shake();
       return;
     }
-
     setLoading(true);
     setError('');
-
     try {
-      const user = await api.emailAuth({
+      await api.emailAuth({
         email: email.trim(),
         password,
         displayName: mode === 'signup' ? name.trim() || undefined : undefined,
         mode,
       });
-
-      await actions.login(user);
-
-      // If we have a plan, go to trip; otherwise start over
-      if (state.plan) {
-        actions.setPhase('trip');
-      } else {
-        actions.setPhase('onboarding');
-      }
+      setCode('');
+      startResendCooldown();
+      setStep('verify');
     } catch (err: any) {
-      const msg = friendlyError(err);
-      setError(msg);
+      setError(friendlyError(err));
       shake();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAppleSignIn = () => {
-    // Apple Sign-In requires native module - placeholder
-    setError('Apple Sign-In requires a native build.');
+  // ─── Step 2: verify the code ───────────────────────────
+  const handleVerify = async () => {
+    if (code.trim().length < 4) {
+      setError('Please enter the code from your email.');
+      shake();
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const user = await api.verifyCode({ email: email.trim(), code: code.trim() });
+      await actions.login(user);
+      actions.setPhase(state.plan ? 'trip' : 'onboarding');
+    } catch (err: any) {
+      setError(friendlyError(err));
+      shake();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGoogleSignIn = () => {
-    // Google Sign-In requires native module - placeholder
-    setError('Google Sign-In requires a native build.');
+  // ─── Resend code ───────────────────────────────────────
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setLoading(true);
+    try {
+      await api.emailAuth({
+        email: email.trim(),
+        password,
+        displayName: mode === 'signup' ? name.trim() || undefined : undefined,
+        mode,
+      });
+      startResendCooldown();
+    } catch (err: any) {
+      setError(friendlyError(err));
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ─── Render: verify step ───────────────────────────────
+  if (step === 'verify') {
+    return (
+      <View style={styles.container}>
+        <LinearGradient
+          colors={['#0D0D0F', '#1a1a2e', '#0D0D0F']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.kav}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Back */}
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => { setStep('credentials'); setError(''); setCode(''); }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={22} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.tagline}>OFFPATH</Text>
+              <Text style={styles.title}>Check your email</Text>
+              <Text style={styles.subtitle}>
+                We sent a verification code to{'\n'}
+                <Text style={styles.emailHighlight}>{email.trim()}</Text>
+              </Text>
+            </View>
+
+            <Animated.View
+              style={[styles.formCard, { transform: [{ translateX: shakeAnim }] }]}
+            >
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Verification code</Text>
+                <TextInput
+                  style={[styles.textInput, styles.codeInput]}
+                  placeholder="Enter code"
+                  placeholderTextColor={colors.textMuted}
+                  value={code}
+                  onChangeText={setCode}
+                  keyboardType="number-pad"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={8}
+                />
+              </View>
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleVerify}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#F97316', '#FB923C']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.submitBtnGradient}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={colors.white} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Verify & continue</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.resendBtn}
+                onPress={handleResend}
+                disabled={resendCooldown > 0 || loading}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.resendText, resendCooldown > 0 && styles.resendTextDisabled]}>
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    );
+  }
+
+  // ─── Render: credentials step ──────────────────────────
   return (
     <View style={styles.container}>
       <LinearGradient
         colors={['#0D0D0F', '#1a1a2e', '#0D0D0F']}
         style={StyleSheet.absoluteFillObject}
       />
-
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.kav}
@@ -111,26 +274,20 @@ export default function AuthScreen() {
             </Text>
           </View>
 
-          {/* Social Buttons */}
+          {/* Apple */}
           <TouchableOpacity
             style={styles.socialBtn}
             onPress={handleAppleSignIn}
             activeOpacity={0.7}
+            disabled={appleLoading || loading}
           >
             <View style={styles.socialBtnInner}>
-              <Ionicons name="logo-apple" size={20} color={colors.white} style={{ marginRight: 10 }} />
+              {appleLoading ? (
+                <ActivityIndicator color={colors.white} style={{ marginRight: 10 }} />
+              ) : (
+                <Ionicons name="logo-apple" size={20} color={colors.white} style={{ marginRight: 10 }} />
+              )}
               <Text style={styles.socialBtnTextLight}>Continue with Apple</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.socialBtn, styles.googleBtn]}
-            onPress={handleGoogleSignIn}
-            activeOpacity={0.7}
-          >
-            <View style={styles.socialBtnInner}>
-              <Text style={styles.googleLogo}>G</Text>
-              <Text style={styles.socialBtnTextDark}>Continue with Google</Text>
             </View>
           </TouchableOpacity>
 
@@ -143,44 +300,28 @@ export default function AuthScreen() {
 
           {/* Email Form */}
           <Animated.View
-            style={[
-              styles.formCard,
-              { transform: [{ translateX: shakeAnim }] },
-            ]}
+            style={[styles.formCard, { transform: [{ translateX: shakeAnim }] }]}
           >
             {/* Mode Toggle */}
             <View style={styles.modeToggle}>
               <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  mode === 'signup' && styles.modeBtnActive,
-                ]}
+                style={[styles.modeBtn, mode === 'signup' && styles.modeBtnActive]}
                 onPress={() => { setMode('signup'); setError(''); }}
               >
-                <Text style={[
-                  styles.modeBtnText,
-                  mode === 'signup' && styles.modeBtnTextActive,
-                ]}>
+                <Text style={[styles.modeBtnText, mode === 'signup' && styles.modeBtnTextActive]}>
                   Sign Up
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modeBtn,
-                  mode === 'login' && styles.modeBtnActive,
-                ]}
+                style={[styles.modeBtn, mode === 'login' && styles.modeBtnActive]}
                 onPress={() => { setMode('login'); setError(''); }}
               >
-                <Text style={[
-                  styles.modeBtnText,
-                  mode === 'login' && styles.modeBtnTextActive,
-                ]}>
+                <Text style={[styles.modeBtnText, mode === 'login' && styles.modeBtnTextActive]}>
                   Login
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Name (signup only) */}
             {mode === 'signup' && (
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Name (optional)</Text>
@@ -195,7 +336,6 @@ export default function AuthScreen() {
               </View>
             )}
 
-            {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Email</Text>
               <TextInput
@@ -210,7 +350,6 @@ export default function AuthScreen() {
               />
             </View>
 
-            {/* Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Password</Text>
               <TextInput
@@ -224,18 +363,16 @@ export default function AuthScreen() {
               />
             </View>
 
-            {/* Error */}
             {error ? (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             ) : null}
 
-            {/* Submit */}
             <TouchableOpacity
               style={styles.submitBtn}
               onPress={handleEmailAuth}
-              disabled={loading}
+              disabled={loading || appleLoading}
               activeOpacity={0.8}
             >
               <LinearGradient
@@ -261,23 +398,20 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  kav: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: colors.bg },
+  kav: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 24,
     paddingTop: 80,
     paddingBottom: 60,
   },
 
-  // Header
-  header: {
-    marginBottom: 36,
+  backBtn: {
+    marginBottom: 24,
+    alignSelf: 'flex-start',
   },
+
+  header: { marginBottom: 36 },
   tagline: {
     color: colors.accent,
     fontSize: typography.sizes.xs,
@@ -296,8 +430,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     lineHeight: 22,
   },
+  emailHighlight: {
+    color: colors.textPrimary,
+    fontWeight: typography.weights.semibold,
+  },
 
-  // Social
   socialBtn: {
     backgroundColor: colors.black,
     borderRadius: radius.lg,
@@ -305,54 +442,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  googleBtn: {
-    backgroundColor: colors.white,
-  },
   socialBtnInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
   },
-  appleLogo: {
-    fontSize: 20,
-    marginRight: 10,
-  },
-  googleLogo: {
-    fontSize: 18,
-    fontWeight: typography.weights.bold,
-    color: '#4285F4',
-    marginRight: 10,
-  },
   socialBtnTextLight: {
     color: colors.white,
     fontSize: typography.sizes.base,
     fontWeight: typography.weights.semibold,
   },
-  socialBtnTextDark: {
-    color: colors.black,
-    fontSize: typography.sizes.base,
-    fontWeight: typography.weights.semibold,
-  },
 
-  // Divider
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 24,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
-  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: {
     color: colors.textMuted,
     fontSize: typography.sizes.sm,
     marginHorizontal: 16,
   },
 
-  // Form Card
   formCard: {
     backgroundColor: colors.bgCard,
     borderRadius: radius.xl,
@@ -360,8 +473,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-
-  // Mode Toggle
   modeToggle: {
     flexDirection: 'row',
     backgroundColor: colors.bgElevated,
@@ -375,22 +486,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.sm,
   },
-  modeBtnActive: {
-    backgroundColor: colors.accent,
-  },
+  modeBtnActive: { backgroundColor: colors.accent },
   modeBtnText: {
     color: colors.textMuted,
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
   },
-  modeBtnTextActive: {
-    color: colors.white,
-  },
+  modeBtnTextActive: { color: colors.white },
 
-  // Input
-  inputGroup: {
-    marginBottom: 16,
-  },
+  inputGroup: { marginBottom: 16 },
   inputLabel: {
     color: colors.textSecondary,
     fontSize: typography.sizes.sm,
@@ -406,8 +510,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  codeInput: {
+    fontSize: 24,
+    letterSpacing: 8,
+    textAlign: 'center',
+  },
 
-  // Error
   errorBox: {
     backgroundColor: 'rgba(239,68,68,0.12)',
     borderRadius: radius.md,
@@ -422,11 +530,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // Submit
-  submitBtn: {
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-  },
+  submitBtn: { borderRadius: radius.lg, overflow: 'hidden' },
   submitBtnGradient: {
     paddingVertical: 16,
     alignItems: 'center',
@@ -436,5 +540,18 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.md,
     fontWeight: typography.weights.bold,
+  },
+
+  resendBtn: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  resendText: {
+    color: colors.accent,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+  },
+  resendTextDisabled: {
+    color: colors.textMuted,
   },
 });
