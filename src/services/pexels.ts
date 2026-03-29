@@ -98,7 +98,7 @@ export async function getStoryPhotos(city: string): Promise<(string | null)[]> {
 
   return Array.from({ length: 6 }, (_, i) => {
     const photo = unique[i % unique.length];
-    return photo?.src?.large || photo?.src?.medium || null;
+    return photo?.src?.portrait || photo?.src?.large || null;
   });
 }
 
