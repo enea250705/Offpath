@@ -1,5 +1,7 @@
 const express = require('express');
+const Groq = require('groq-sdk');
 const router = express.Router();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // ISO 3166-1 alpha-2 — country name → code
 const COUNTRY_CODES = {
@@ -60,6 +62,96 @@ router.get('/city-autocomplete', async (req, res) => {
   } catch (err) {
     console.error('[places/city-autocomplete]', err);
     res.status(500).json({ error: 'Autocomplete failed' });
+  }
+});
+
+// GET /v1/places/nearby?lat=X&lng=Y&radius=1000
+router.get('/nearby', async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  const radius = Math.min(parseFloat(req.query.radius) || 1000, 2000);
+
+  if (isNaN(lat) || isNaN(lng)) return res.status(400).json({ error: 'lat and lng required' });
+
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return res.status(500).json({ error: 'Maps API key not configured' });
+
+  const FIELD_MASK = [
+    'places.id', 'places.displayName', 'places.formattedAddress', 'places.location',
+    'places.primaryType', 'places.primaryTypeDisplayName', 'places.rating', 'places.userRatingCount',
+  ].join(',');
+
+  try {
+    const r = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': FIELD_MASK },
+      body: JSON.stringify({
+        includedTypes: ['restaurant', 'tourist_attraction', 'museum', 'cafe', 'bar', 'park', 'art_gallery'],
+        maxResultCount: 20,
+        locationRestriction: { circle: { center: { latitude: lat, longitude: lng }, radius } },
+        rankPreference: 'POPULARITY',
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!r.ok) return res.status(502).json({ error: 'Places API error' });
+    const data = await r.json();
+
+    const places = (data.places || []).map(p => ({
+      id: p.id || `${p.location?.latitude},${p.location?.longitude}`,
+      name: p.displayName?.text || '',
+      address: p.formattedAddress || '',
+      category: p.primaryTypeDisplayName?.text || p.primaryType || 'Place',
+      latitude: p.location?.latitude || 0,
+      longitude: p.location?.longitude || 0,
+      rating: p.rating || 0,
+      reviewCount: p.userRatingCount || 0,
+    }));
+
+    res.json(places);
+  } catch (err) {
+    console.error('[places/nearby]', err);
+    res.status(500).json({ error: 'Nearby search failed' });
+  }
+});
+
+// POST /v1/places/insight
+// Body: { name, address, category, rating, reviewCount }
+router.post('/insight', async (req, res) => {
+  const { name, address, category, rating, reviewCount } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{
+        role: 'user',
+        content: `You are a travel expert. Give a quick, honest insight about this place for a traveler.
+
+Place: ${name}
+Type: ${category || 'Place'}
+Address: ${address || ''}
+Rating: ${rating ? `${rating}/5 (${reviewCount || 0} reviews)` : 'Not rated'}
+
+Return ONLY valid JSON, no markdown:
+{
+  "summary": "2-3 punchy sentences about the vibe, what makes it special, who it suits",
+  "pros": ["max 3 pros, each under 8 words"],
+  "cons": ["max 2 cons, each under 8 words"],
+  "keyFacts": ["max 3 practical things a visitor should know"]
+}`,
+      }],
+      temperature: 0.6,
+      max_tokens: 350,
+    });
+
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const match = raw.match(/\{[\s\S]*\}/);
+    const insight = match ? JSON.parse(match[0]) : { summary: raw.slice(0, 200), pros: [], cons: [], keyFacts: [] };
+    res.json(insight);
+  } catch (err) {
+    console.error('[places/insight]', err);
+    res.status(500).json({ error: 'Insight failed' });
   }
 });
 
