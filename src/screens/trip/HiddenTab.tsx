@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import LiquidGlassCard from '../../components/LiquidGlassCard';
 import { useApp } from '../../store/AppContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme';
 import { HiddenPlace } from '../../types';
@@ -40,20 +41,22 @@ function HiddenPlaceCard({ place }: { place: HiddenPlace }) {
   };
 
   return (
-    <TouchableOpacity
+    <LiquidGlassCard
       style={styles.placeCard}
-      activeOpacity={0.8}
+      intensity={25}
       onPress={() => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setExpanded(!expanded);
       }}
     >
+      {/* Warm amber tint overlay */}
       <LinearGradient
-        colors={['#2d1b0e', '#1a1208', '#18181B']}
+        colors={['rgba(45,27,14,0.55)', 'rgba(26,18,8,0.45)', 'rgba(0,0,0,0)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.placeCardBg}
-      >
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.placeCardContent}>
         <Text style={styles.placeName}>{place.name}</Text>
 
         <View style={styles.locationRow}>
@@ -88,8 +91,8 @@ function HiddenPlaceCard({ place }: { place: HiddenPlace }) {
             </TouchableOpacity>
           </View>
         )}
-      </LinearGradient>
-    </TouchableOpacity>
+      </View>
+    </LiquidGlassCard>
   );
 }
 
@@ -144,13 +147,13 @@ export default function HiddenTab() {
             {/* Locked Cards */}
             {lockedCount > 0 &&
               Array.from({ length: lockedCount }).map((_, idx) => (
-                <View key={`locked-${idx}`} style={styles.lockedCard}>
+                <LiquidGlassCard key={`locked-${idx}`} style={styles.lockedCard}>
                   <View style={styles.lockedCardInner}>
                     <Ionicons name="lock-closed" size={28} color={colors.textMuted} style={{ marginBottom: 8 }} />
                     <Text style={styles.lockedText}>Hidden gem</Text>
                     <Text style={styles.lockedSubtext}>Unlock with Trip Pass</Text>
                   </View>
-                </View>
+                </LiquidGlassCard>
               ))}
 
             {/* Upgrade Banner (if free) */}
@@ -255,13 +258,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     borderRadius: radius.xl,
-    overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(249,115,22,0.2)',
   },
-  placeCardBg: {
+  placeCardContent: {
     padding: 22,
-    borderRadius: radius.xl,
   },
   placeName: {
     color: colors.textPrimary,

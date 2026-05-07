@@ -20,6 +20,7 @@ import { api, pickSurpriseCity } from '../../services/api';
 import { getStoryPhotos, isPexelsConfigured } from '../../services/pexels';
 import { colors } from '../../theme';
 import { LocationCoordinate } from '../../types';
+import LiquidGlassCard from '../../components/LiquidGlassCard';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const MIN_DURATION = 9500;
@@ -446,7 +447,7 @@ export default function GeneratingScreen() {
           colors={['transparent', 'rgba(13,17,23,0.9)', '#0d1117']}
           style={styles.bottomFade}
         />
-        <View style={styles.bottomCard}>
+        <LiquidGlassCard style={styles.bottomCard} intensity={30}>
           {/* Destination heading */}
           <Text style={styles.buildingLabel}>Crafting your trip to</Text>
           <Text style={styles.buildingCity}>
@@ -480,7 +481,7 @@ export default function GeneratingScreen() {
               );
             })}
           </View>
-        </View>
+        </LiquidGlassCard>
       </View>
     </Animated.View>
   );
@@ -533,10 +534,7 @@ const styles = StyleSheet.create({
   bottomCard: {
     marginHorizontal: 16,
     marginBottom: 48,
-    backgroundColor: 'rgba(17,19,24,0.92)',
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },

@@ -7,6 +7,8 @@ const KEYS = {
   user: 'offpath.user',
   plan: 'offpath.currentPlan',
   guideMessages: 'offpath.guideMessages',
+  tripHistory: 'offpath.tripHistory',
+  reviewRequested: 'offpath.reviewRequested',
 };
 
 // ─── Auth (Secure Store) ───────────────────────────────────
@@ -63,7 +65,39 @@ export async function clearGuideMessages(): Promise<void> {
   await AsyncStorage.removeItem(KEYS.guideMessages);
 }
 
+// ─── Trip History (AsyncStorage) ──────────────────────────
+export async function saveTripHistory(plans: TripPlan[]): Promise<void> {
+  await AsyncStorage.setItem(KEYS.tripHistory, JSON.stringify(plans));
+}
+
+export async function loadTripHistory(): Promise<TripPlan[]> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.tripHistory);
+    return raw ? (JSON.parse(raw) as TripPlan[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function clearTripHistory(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.tripHistory);
+}
+
+// ─── Review Requested Flag ─────────────────────────────────
+export async function hasRequestedReview(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(KEYS.reviewRequested);
+    return val === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function markReviewRequested(): Promise<void> {
+  await AsyncStorage.setItem(KEYS.reviewRequested, 'true');
+}
+
 // ─── Clear All ─────────────────────────────────────────────
 export async function clearAll(): Promise<void> {
-  await Promise.all([clearUser(), clearPlan(), clearGuideMessages()]);
+  await Promise.all([clearUser(), clearPlan(), clearGuideMessages(), clearTripHistory()]);
 }

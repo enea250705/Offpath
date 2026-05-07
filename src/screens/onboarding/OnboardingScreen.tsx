@@ -20,6 +20,7 @@ import { useApp } from '../../store/AppContext';
 import { api } from '../../services/api';
 import { colors, typography, spacing, radius } from '../../theme';
 import { DestinationMode, TravelStyle, TravelerGroup } from '../../types';
+import LiquidGlassCard from '../../components/LiquidGlassCard';
 
 type CitySuggestion = { city: string; country: string; countryCode: string };
 
@@ -140,14 +141,20 @@ export default function OnboardingScreen() {
       <Text style={styles.questionLabel}>HOW DO YOU TRAVEL?</Text>
       <Text style={styles.questionTitle}>Do you know where{'\n'}you're going?</Text>
 
-      <TouchableOpacity
+      <LiquidGlassCard
         style={[
           styles.radioCard,
           sessionAnswers.destinationMode === 'know' && styles.radioCardSelected,
         ]}
         onPress={() => actions.updateAnswers({ destinationMode: 'know' })}
-        activeOpacity={0.7}
+        intensity={sessionAnswers.destinationMode === 'know' ? 30 : 20}
       >
+        {sessionAnswers.destinationMode === 'know' && (
+          <LinearGradient
+            colors={['rgba(249,115,22,0.18)', 'rgba(249,115,22,0.05)']}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <View style={styles.radioRow}>
           <View style={[
             styles.radioCircle,
@@ -160,16 +167,22 @@ export default function OnboardingScreen() {
             <Text style={styles.radioDesc}>Search for your destination</Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </LiquidGlassCard>
 
-      <TouchableOpacity
+      <LiquidGlassCard
         style={[
           styles.radioCard,
           sessionAnswers.destinationMode === 'suggest' && styles.radioCardSelected,
         ]}
         onPress={() => actions.updateAnswers({ destinationMode: 'suggest' })}
-        activeOpacity={0.7}
+        intensity={sessionAnswers.destinationMode === 'suggest' ? 30 : 20}
       >
+        {sessionAnswers.destinationMode === 'suggest' && (
+          <LinearGradient
+            colors={['rgba(249,115,22,0.18)', 'rgba(249,115,22,0.05)']}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
         <View style={styles.radioRow}>
           <View style={[
             styles.radioCircle,
@@ -182,7 +195,7 @@ export default function OnboardingScreen() {
             <Text style={styles.radioDesc}>We'll pick based on your vibe</Text>
           </View>
         </View>
-      </TouchableOpacity>
+      </LiquidGlassCard>
     </View>
   );
 
@@ -193,7 +206,7 @@ export default function OnboardingScreen() {
           <Text style={styles.questionLabel}>DESTINATION</Text>
           <Text style={styles.questionTitle}>Where are you headed?</Text>
 
-          <View style={styles.inputWrapper}>
+          <LiquidGlassCard style={styles.inputWrapper} intensity={25}>
             <Ionicons name="location-outline" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
             <TextInput
               style={styles.textInput}
@@ -208,10 +221,10 @@ export default function OnboardingScreen() {
             {suggestionsLoading && (
               <ActivityIndicator size="small" color={colors.textMuted} style={{ marginLeft: 8 }} />
             )}
-          </View>
+          </LiquidGlassCard>
 
           {suggestions.length > 0 && (
-            <View style={styles.suggestionsBox}>
+            <LiquidGlassCard style={styles.suggestionsBox} intensity={30}>
               {suggestions.map((s, i) => (
                 <TouchableOpacity
                   key={`${s.city}-${s.country}-${i}`}
@@ -234,7 +247,7 @@ export default function OnboardingScreen() {
                   </View>
                 </TouchableOpacity>
               ))}
-            </View>
+            </LiquidGlassCard>
           )}
         </View>
       );
@@ -246,15 +259,21 @@ export default function OnboardingScreen() {
         <Text style={styles.questionTitle}>What's your travel style?</Text>
 
         {STYLES.map((s) => (
-          <TouchableOpacity
+          <LiquidGlassCard
             key={s.key}
             style={[
               styles.radioCard,
               sessionAnswers.style === s.key && styles.radioCardSelected,
             ]}
             onPress={() => actions.updateAnswers({ style: s.key })}
-            activeOpacity={0.7}
+            intensity={sessionAnswers.style === s.key ? 30 : 20}
           >
+            {sessionAnswers.style === s.key && (
+              <LinearGradient
+                colors={['rgba(249,115,22,0.18)', 'rgba(249,115,22,0.05)']}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <View style={styles.radioRow}>
               <Ionicons name={s.icon} size={24} color={sessionAnswers.style === s.key ? colors.accent : colors.textMuted} style={{ marginRight: 14 }} />
               <View style={styles.radioTextCol}>
@@ -267,7 +286,7 @@ export default function OnboardingScreen() {
                 </View>
               )}
             </View>
-          </TouchableOpacity>
+          </LiquidGlassCard>
         ))}
       </View>
     );
@@ -280,15 +299,21 @@ export default function OnboardingScreen() {
 
       <View style={styles.groupRow}>
         {GROUPS.map((g) => (
-          <TouchableOpacity
+          <LiquidGlassCard
             key={g.key}
             style={[
               styles.groupCard,
               sessionAnswers.group === g.key && styles.groupCardSelected,
             ]}
             onPress={() => actions.updateAnswers({ group: g.key })}
-            activeOpacity={0.7}
+            intensity={sessionAnswers.group === g.key ? 30 : 20}
           >
+            {sessionAnswers.group === g.key && (
+              <LinearGradient
+                colors={['rgba(249,115,22,0.18)', 'rgba(249,115,22,0.05)']}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Ionicons name={g.icon} size={28} color={sessionAnswers.group === g.key ? colors.accent : colors.textMuted} style={{ marginBottom: 8 }} />
             <Text style={[
               styles.groupLabel,
@@ -297,7 +322,7 @@ export default function OnboardingScreen() {
               {g.label}
             </Text>
             <Text style={styles.groupDesc}>{g.desc}</Text>
-          </TouchableOpacity>
+          </LiquidGlassCard>
         ))}
       </View>
     </View>
@@ -333,21 +358,28 @@ export default function OnboardingScreen() {
 
       <View style={styles.quickDays}>
         {[3, 5, 7, 10, 14].map((d) => (
-          <TouchableOpacity
+          <LiquidGlassCard
             key={d}
             style={[
               styles.quickDayBtn,
               sessionAnswers.tripLength === d && styles.quickDayBtnActive,
             ]}
             onPress={() => actions.updateAnswers({ tripLength: d })}
+            intensity={sessionAnswers.tripLength === d ? 0 : 20}
           >
+            {sessionAnswers.tripLength === d && (
+              <LinearGradient
+                colors={['#F97316', '#FB923C']}
+                style={StyleSheet.absoluteFill}
+              />
+            )}
             <Text style={[
               styles.quickDayText,
               sessionAnswers.tripLength === d && styles.quickDayTextActive,
             ]}>
               {d}
             </Text>
-          </TouchableOpacity>
+          </LiquidGlassCard>
         ))}
       </View>
     </View>
@@ -370,9 +402,13 @@ export default function OnboardingScreen() {
         {/* Header */}
         <View style={styles.header}>
           {step > 0 && (
-            <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
+            <LiquidGlassCard
+              style={styles.backBtn}
+              onPress={handleBack}
+              intensity={20}
+            >
               <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
-            </TouchableOpacity>
+            </LiquidGlassCard>
           )}
           <View style={styles.progressContainer}>
             {[0, 1, 2, 3].map((i) => (
@@ -519,16 +555,14 @@ const styles = StyleSheet.create({
 
   // Radio Cards
   radioCard: {
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     padding: 18,
     marginBottom: 12,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   radioCardSelected: {
     borderColor: colors.accent,
-    backgroundColor: colors.accentMuted,
   },
   radioRow: {
     flexDirection: 'row',
@@ -588,11 +622,10 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     paddingHorizontal: 16,
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   inputIcon: {
     fontSize: 20,
@@ -606,10 +639,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   suggestionsBox: {
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
     marginTop: 6,
     overflow: 'hidden',
   },
@@ -659,16 +691,14 @@ const styles = StyleSheet.create({
   },
   groupCard: {
     flex: 1,
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     padding: 18,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   groupCardSelected: {
     borderColor: colors.accent,
-    backgroundColor: colors.accentMuted,
   },
   groupEmoji: {
     fontSize: 32,
@@ -756,14 +786,12 @@ const styles = StyleSheet.create({
     width: 52,
     height: 44,
     borderRadius: radius.md,
-    backgroundColor: colors.bgCard,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   quickDayBtnActive: {
-    backgroundColor: colors.accent,
     borderColor: colors.accent,
   },
   quickDayText: {

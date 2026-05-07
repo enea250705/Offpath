@@ -2,6 +2,7 @@
   "expo": {
     "name": "Offpath",
     "slug": "Offpath",
+    "owner": "enea2507",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,7 +24,6 @@
       "adaptiveIcon": {
         "backgroundColor": "#0D0D0F",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.offpath.app",
@@ -45,12 +45,9 @@
         }
       ],
       "expo-apple-authentication",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store"
     ],
-    "extra": {
-      "eas": {
-        "projectId": "c1ec8e56-cc18-43d8-ab60-4f6aeca969e0"
-      }
-    }
+    "extra": {}
   }
 }

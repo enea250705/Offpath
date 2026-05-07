@@ -228,6 +228,27 @@ export const api = {
   },
 
   // ── Places ────────────────────────────────────────────────
+  async nearbyPlaces(lat: number, lng: number, radius = 1000): Promise<{
+    id: string; name: string; address: string; category: string;
+    latitude: number; longitude: number; rating: number; reviewCount: number;
+  }[]> {
+    return fetchWithRetry(
+      `${BASE_URL}/v1/places/nearby?lat=${lat}&lng=${lng}&radius=${radius}`,
+      { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+      15_000,
+    );
+  },
+
+  async placeInsight(place: { name: string; address: string; category: string; rating: number; reviewCount: number }): Promise<{
+    summary: string; pros: string[]; cons: string[]; keyFacts: string[];
+  }> {
+    return fetchWithRetry(
+      `${BASE_URL}/v1/places/insight`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(place) },
+      20_000,
+    );
+  },
+
   async cityAutocomplete(q: string): Promise<{ city: string; country: string; countryCode: string }[]> {
     if (q.trim().length < 2) return [];
     return fetchWithRetry(

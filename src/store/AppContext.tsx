@@ -7,6 +7,7 @@ import {
   GuideMessage,
   SessionAnswers,
 } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
 import * as storage from '../services/storage';
 
@@ -15,6 +16,7 @@ interface AppState {
   phase: AppPhase;
   user: AuthUser | null;
   plan: TripPlan | null;
+  tripHistory: TripPlan[];
   guideMessages: GuideMessage[];
   isPremium: boolean;
   sessionAnswers: SessionAnswers;
@@ -31,6 +33,7 @@ const initialState: AppState = {
   phase: 'onboarding',
   user: null,
   plan: null,
+  tripHistory: [],
   guideMessages: [],
   isPremium: false,
   sessionAnswers: initialAnswers,
@@ -48,6 +51,8 @@ type Action =
   | { type: 'SET_PREMIUM'; isPremium: boolean }
   | { type: 'UPDATE_ANSWERS'; answers: Partial<SessionAnswers> }
   | { type: 'SET_STORY_PHOTOS'; photos: (string | null)[] }
+  | { type: 'SET_TRIP_HISTORY'; history: TripPlan[] }
+  | { type: 'START_NEW_TRIP' }
   | { type: 'RESET_SESSION' }
   | { type: 'RESTORE_DONE' };
 
@@ -57,8 +62,25 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, phase: action.phase };
     case 'SET_USER':
       return { ...state, user: action.user };
-    case 'SET_PLAN':
-      return { ...state, plan: action.plan };
+    case 'SET_PLAN': {
+      // Archive existing plan to history before replacing
+      const alreadyInHistory = state.plan
+        ? state.tripHistory.some(
+            (h) =>
+              h.id === state.plan!.id &&
+              h.destinationCity === state.plan!.destinationCity,
+          )
+        : true;
+      const newHistory =
+        state.plan && !alreadyInHistory
+          ? [{ ...state.plan, createdAt: state.plan.createdAt ?? new Date().toISOString() }, ...state.tripHistory]
+          : state.tripHistory;
+      return {
+        ...state,
+        plan: { ...action.plan, createdAt: action.plan.createdAt ?? new Date().toISOString() },
+        tripHistory: newHistory,
+      };
+    }
     case 'SET_GUIDE_MESSAGES':
       return { ...state, guideMessages: action.messages };
     case 'ADD_GUIDE_MESSAGE':
@@ -72,6 +94,30 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case 'SET_STORY_PHOTOS':
       return { ...state, storyPhotos: action.photos };
+    case 'SET_TRIP_HISTORY':
+      return { ...state, tripHistory: action.history };
+    case 'START_NEW_TRIP': {
+      // Archive current plan to history if not already there
+      const alreadyIn = state.plan
+        ? state.tripHistory.some(
+            (h) =>
+              h.id === state.plan!.id &&
+              h.destinationCity === state.plan!.destinationCity,
+          )
+        : true;
+      const historyWithCurrent =
+        state.plan && !alreadyIn
+          ? [{ ...state.plan, createdAt: state.plan.createdAt ?? new Date().toISOString() }, ...state.tripHistory]
+          : state.tripHistory;
+      return {
+        ...initialState,
+        isRestoring: false,
+        user: state.user,
+        isPremium: state.isPremium,
+        tripHistory: historyWithCurrent,
+        phase: 'onboarding',
+      };
+    }
     case 'RESET_SESSION':
       return {
         ...initialState,
@@ -93,6 +139,7 @@ interface AppContextValue {
     login: (user: AuthUser) => Promise<void>;
     logout: () => Promise<void>;
     setPlan: (plan: TripPlan) => Promise<void>;
+    startNewTrip: () => Promise<void>;
     updateAnswers: (a: Partial<SessionAnswers>) => void;
     addGuideMessage: (msg: GuideMessage) => void;
     setGuideMessages: (msgs: GuideMessage[]) => void;
@@ -110,10 +157,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [user, plan, messages] = await Promise.all([
+        const [user, plan, messages, history] = await Promise.all([
           storage.loadUser(),
           storage.loadPlan(),
           storage.loadGuideMessages(),
+          storage.loadTripHistory(),
         ]);
 
         if (user) {
@@ -125,6 +173,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         if (messages.length) {
           dispatch({ type: 'SET_GUIDE_MESSAGES', messages });
+        }
+        // Seed a demo past trip once for the dev account
+        let resolvedHistory = history;
+        const SEED_FLAG = 'offpath.historySeeded';
+        const alreadySeeded = await AsyncStorage.getItem(SEED_FLAG).catch(() => null);
+        if (
+          user?.email === 'eneamuja87@gmail.com' &&
+          resolvedHistory.length === 0 &&
+          !alreadySeeded
+        ) {
+          const demoTrip: TripPlan = {
+            id: 'demo-lisbon-2024',
+            destinationCity: 'Lisbon',
+            destinationCountry: 'Portugal',
+            intro: 'A sun-drenched city of fado, trams, and pastel de nata.',
+            shareLine: 'Lost in Lisbon and loving every second.',
+            previewDays: [],
+            fullDays: [
+              { id: 'd1', dayNumber: 1, title: 'Alfama & The Old Soul', mood: 'Wandering & Wondering', summary: '', moments: [] },
+              { id: 'd2', dayNumber: 2, title: 'Belém & The River', mood: 'Breezy & Historic', summary: '', moments: [] },
+              { id: 'd3', dayNumber: 3, title: 'LX Factory & Nightlife', mood: 'Creative & Electric', summary: '', moments: [] },
+            ],
+            hiddenPlaces: [],
+            heroCoordinate: { latitude: 38.7169, longitude: -9.1399 },
+            destinationCoordinate: { latitude: 38.7169, longitude: -9.1399 },
+            travelStyle: 'culture',
+            travelerGroup: 'solo',
+            totalPlaces: 12,
+            createdAt: new Date('2024-11-03').toISOString(),
+          };
+          resolvedHistory = [demoTrip];
+          await storage.saveTripHistory(resolvedHistory).catch(() => {});
+          await AsyncStorage.setItem(SEED_FLAG, '1').catch(() => {});
+        }
+        if (resolvedHistory.length) {
+          dispatch({ type: 'SET_TRIP_HISTORY', history: resolvedHistory });
         }
 
         // Determine starting phase
@@ -162,6 +246,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPlan: useCallback(async (plan: TripPlan) => {
       dispatch({ type: 'SET_PLAN', plan });
       try { await storage.savePlan(plan); } catch (e) { console.warn('[Storage] savePlan failed:', e); }
+    }, []),
+
+    startNewTrip: useCallback(async () => {
+      dispatch({ type: 'START_NEW_TRIP' });
+      // Persist the updated history (state snapshot after dispatch is unavailable here,
+      // so we load the current history, merge current plan, then save)
+      try {
+        const [currentPlan, existingHistory] = await Promise.all([
+          storage.loadPlan(),
+          storage.loadTripHistory(),
+        ]);
+        if (currentPlan) {
+          const alreadyIn = existingHistory.some(
+            (h) =>
+              h.id === currentPlan.id &&
+              h.destinationCity === currentPlan.destinationCity,
+          );
+          if (!alreadyIn) {
+            const updated = [
+              { ...currentPlan, createdAt: currentPlan.createdAt ?? new Date().toISOString() },
+              ...existingHistory,
+            ];
+            await storage.saveTripHistory(updated);
+          }
+        }
+        await storage.clearPlan();
+        await storage.clearGuideMessages();
+      } catch (e) { console.warn('[Storage] startNewTrip failed:', e); }
     }, []),
 
     updateAnswers: useCallback(

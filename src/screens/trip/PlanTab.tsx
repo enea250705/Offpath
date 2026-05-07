@@ -1,11 +1,13 @@
-// Offpath — Plan Tab (Full Itinerary with real places, ratings, neighborhoods)
-import React, { useState } from 'react';
+// Offpath — Plan Tab (rebuilt)
+import React, { useState, useEffect } from 'react';
+import * as StoreReview from 'expo-store-review';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   LayoutAnimation,
   Platform,
   UIManager,
@@ -16,9 +18,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../store/AppContext';
-import { colors, typography, spacing, radius } from '../../theme';
+import { colors } from '../../theme';
 import { ItineraryDay, ItineraryMoment } from '../../types';
 import { getCityPhoto } from '../../services/pexels';
+import { hasRequestedReview, markReviewRequested } from '../../services/storage';
+import { BlurView } from 'expo-blur';
+import LiquidGlassCard from '../../components/LiquidGlassCard';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -26,60 +31,55 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-// ─── Star rating display ───────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────
+
 function StarRating({ rating, count }: { rating?: number; count?: number }) {
   if (!rating) return null;
   const full = Math.floor(rating);
   const half = rating - full >= 0.5;
   return (
-    <View style={styles.ratingRow}>
+    <View style={s.ratingRow}>
       {Array.from({ length: 5 }, (_, i) => (
         <Ionicons
           key={i}
           name={i < full ? 'star' : i === full && half ? 'star-half' : 'star-outline'}
-          size={12}
+          size={11}
           color="#F59E0B"
         />
       ))}
-      <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
-      {count ? <Text style={styles.reviewCount}>({count})</Text> : null}
+      <Text style={s.ratingText}>{rating.toFixed(1)}</Text>
+      {count ? <Text style={s.reviewCount}> ({count})</Text> : null}
     </View>
   );
 }
 
-// ─── Price level display ───────────────────────────────────
 function PriceLevel({ level }: { level?: number }) {
   if (!level) return null;
   return (
-    <Text style={styles.priceLevel}>
+    <Text style={s.priceLevel}>
       {'€'.repeat(level)}
-      <Text style={styles.priceLevelDim}>{'€'.repeat(4 - level)}</Text>
+      <Text style={s.priceLevelDim}>{'€'.repeat(4 - level)}</Text>
     </Text>
   );
 }
 
-// ─── Category badge ────────────────────────────────────────
-function CategoryBadge({ category }: { category?: string }) {
-  if (!category) return null;
-  return (
-    <View style={styles.categoryBadge}>
-      <Text style={styles.categoryText}>{category}</Text>
-    </View>
-  );
-}
+// ─── Moment Card ───────────────────────────────────────────
 
-// ─── Moment Row (each stop in the day) ─────────────────────
-function MomentRow({
+function MomentCard({
   moment,
   accentColor,
+  index,
   isLast,
+  isLocked,
+  onUnlock,
 }: {
   moment: ItineraryMoment;
   accentColor: string;
+  index: number;
   isLast: boolean;
+  isLocked?: boolean;
+  onUnlock?: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-
   const openInMaps = () => {
     if (moment.googleMapsUrl) {
       Linking.openURL(moment.googleMapsUrl);
@@ -94,598 +94,934 @@ function MomentRow({
   };
 
   return (
-    <View style={styles.momentRow}>
-      {/* Timeline */}
-      <View style={styles.timelineCol}>
-        <View style={[styles.timelineDot, { backgroundColor: accentColor }]} />
-        {!isLast && <View style={styles.timelineLine} />}
-      </View>
+    <LiquidGlassCard style={s.momentCard}>
+      {/* Left accent bar */}
+      <View style={[s.momentAccentBar, { backgroundColor: accentColor }]} />
 
-      {/* Content */}
-      <TouchableOpacity
-        style={styles.momentContent}
-        onPress={() => {
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-          setExpanded(!expanded);
-        }}
-        activeOpacity={0.7}
-      >
-        {/* Time + Duration */}
-        <View style={styles.timeRow}>
-          <Text style={[styles.momentTime, { color: accentColor }]}>
-            {moment.timeLabel}
-          </Text>
-          {moment.duration && (
-            <Text style={styles.durationTag}>· {moment.duration}</Text>
-          )}
+      {/* Main content */}
+      <View style={s.momentContent}>
+
+        {/* ── Header row: number · time · category / duration ── */}
+        <View style={s.momentHeader}>
+          <View style={[s.stopNum, { backgroundColor: accentColor }]}>
+            <Text style={s.stopNumText}>{index + 1}</Text>
+          </View>
+          <View style={[s.timePill, { backgroundColor: `${accentColor}18` }]}>
+            <Ionicons name="time-outline" size={11} color={accentColor} />
+            <Text style={[s.timePillText, { color: accentColor }]}>{moment.timeLabel}</Text>
+          </View>
+          <View style={s.headerSpacer} />
+          {moment.duration ? (
+            <View style={s.durationBadge}>
+              <Ionicons name="hourglass-outline" size={10} color={colors.textMuted} />
+              <Text style={s.durationText}>{moment.duration}</Text>
+            </View>
+          ) : null}
+          {moment.category ? (
+            <View style={s.categoryBadge}>
+              <Text style={s.categoryText}>{moment.category.toUpperCase()}</Text>
+            </View>
+          ) : null}
         </View>
 
-        {/* Place name + category */}
-        <View style={styles.titleRow}>
-          <Text style={styles.momentTitle}>{moment.title}</Text>
-          <CategoryBadge category={moment.category} />
+        {/* ── Body: text left + optional photo right ── */}
+        <View style={s.momentBody}>
+          <View style={[s.momentBodyLeft, moment.photoUrl ? { flex: 1, marginRight: 12 } : { flex: 1 }]}>
+            <Text style={s.momentTitle}>{moment.title}</Text>
+            {moment.subtitle ? (
+              <Text style={s.momentSubtitle}>{moment.subtitle}</Text>
+            ) : null}
+
+            {/* Meta row */}
+            <View style={s.metaRow}>
+              <StarRating rating={moment.rating} count={moment.reviewCount} />
+              <PriceLevel level={moment.priceLevel} />
+            </View>
+
+            {/* Location */}
+            {(moment.neighborhood || moment.address) ? (
+              <View style={s.infoRow}>
+                <Ionicons name="location-outline" size={11} color={colors.textMuted} />
+                <Text style={s.infoRowText} numberOfLines={1}>
+                  {moment.neighborhood || moment.address}
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Open hours */}
+            {moment.openHours ? (
+              <View style={s.infoRow}>
+                <Ionicons name="time-outline" size={11} color="#22C55E" />
+                <Text style={[s.infoRowText, { color: '#22C55E' }]} numberOfLines={1}>
+                  {moment.openHours}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+
+          {/* Thumbnail */}
+          {moment.photoUrl ? (
+            <Image
+              source={{ uri: moment.photoUrl }}
+              style={s.momentThumb}
+              resizeMode="cover"
+            />
+          ) : null}
         </View>
 
-        {/* Subtitle (short descriptor) */}
-        {moment.subtitle ? (
-          <Text style={styles.momentSubtitle}>{moment.subtitle}</Text>
+        {/* ── Rationale ── */}
+        {moment.rationale ? (
+          <Text style={s.momentRationale}>{moment.rationale}</Text>
         ) : null}
 
-        {/* Rating + Price */}
-        <View style={styles.metaRow}>
-          <StarRating rating={moment.rating} count={moment.reviewCount} />
-          <PriceLevel level={moment.priceLevel} />
-        </View>
-
-        {/* Neighborhood + Address */}
-        {(moment.neighborhood || moment.address) && (
-          <View style={styles.locationRow}>
-            <Ionicons name="location-outline" size={13} color={colors.textMuted} />
-            <Text style={styles.locationText} numberOfLines={expanded ? 3 : 1}>
-              {moment.neighborhood
-                ? `${moment.neighborhood}${moment.address ? ' · ' + moment.address : ''}`
-                : moment.address}
-            </Text>
-          </View>
-        )}
-
-        {/* AI narrative — what to notice */}
-        <Text style={styles.momentRationale} numberOfLines={expanded ? 20 : 2}>
-          {moment.rationale}
-        </Text>
-
-        {/* Expanded details */}
-        {expanded && (
-          <View style={styles.expandedSection}>
-            {/* Opening hours */}
-            {moment.openHours && (
-              <View style={styles.detailRow}>
-                <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-                <Text style={styles.detailText}>{moment.openHours}</Text>
-              </View>
-            )}
-
-            {/* Transit note — how to get to next stop */}
+        {/* ── Transit / Avoid chips ── */}
+        {(moment.transitNote || moment.avoidNote) ? (
+          <View style={s.chips}>
             {moment.transitNote ? (
-              <View style={styles.transitRow}>
-                <Ionicons name="walk-outline" size={14} color={accentColor} />
-                <Text style={styles.transitText}>{moment.transitNote}</Text>
+              <View style={[s.chip, { borderColor: `${accentColor}35`, backgroundColor: `${accentColor}0D` }]}>
+                <Ionicons name="walk-outline" size={12} color={accentColor} />
+                <Text style={[s.chipText, { color: `${accentColor}CC` }]}>{moment.transitNote}</Text>
               </View>
             ) : null}
-
-            {/* Avoid note — tourist trap warning */}
             {moment.avoidNote ? (
-              <View style={styles.avoidRow}>
-                <Ionicons name="alert-circle-outline" size={14} color={colors.warning} />
-                <Text style={styles.avoidText}>{moment.avoidNote}</Text>
+              <View style={[s.chip, s.avoidChip]}>
+                <Ionicons name="alert-circle-outline" size={12} color="#F87171" />
+                <Text style={[s.chipText, { color: '#F87171BB' }]}>{moment.avoidNote}</Text>
               </View>
             ) : null}
-
-            {/* Open in Maps button */}
-            <TouchableOpacity style={styles.mapsBtn} onPress={openInMaps}>
-              <Ionicons name="navigate-outline" size={14} color={accentColor} />
-              <Text style={[styles.mapsBtnText, { color: accentColor }]}>
-                Open in Maps
-              </Text>
-            </TouchableOpacity>
           </View>
-        )}
+        ) : null}
 
-        {/* Tap hint chevron */}
-        <View style={{ alignItems: 'center', marginTop: expanded ? 12 : 6, opacity: 0.3 }}>
-          <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={16} color={colors.white} />
-        </View>
-      </TouchableOpacity>
+        {/* ── Maps button ── */}
+        <TouchableOpacity
+          style={[s.mapsBtn, { borderColor: `${accentColor}40`, backgroundColor: `${accentColor}10` }]}
+          onPress={openInMaps}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="navigate" size={14} color={accentColor} />
+          <Text style={[s.mapsBtnText, { color: accentColor }]}>Open in Maps</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Locked overlay ── */}
+      {isLocked && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={onUnlock}
+        >
+          {/* Solid dark backing — prevents ANY content bleed-through on hold */}
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(10,10,14,0.75)' }]} />
+          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={s.lockedOverlay}>
+            <View style={[s.lockIconWrap, { borderColor: `${accentColor}60`, backgroundColor: `${accentColor}18` }]}>
+              <Ionicons name="lock-closed" size={20} color={accentColor} />
+            </View>
+            <Text style={s.lockedTitle}>Hidden stop</Text>
+            <Text style={s.lockedSub}>Unlock to reveal this destination</Text>
+            <View style={[s.unlockBtn, { backgroundColor: accentColor }]}>
+              <Text style={s.unlockBtnText}>Unlock Full Trip</Text>
+            </View>
+          </View>
+        </Pressable>
+      )}
+    </LiquidGlassCard>
+  );
+}
+
+// ─── Connector between moment cards ────────────────────────
+
+function MomentConnector({ color }: { color: string }) {
+  return (
+    <View style={s.connectorWrap}>
+      <View style={[s.connectorLine, { backgroundColor: `${color}30` }]} />
     </View>
   );
 }
 
 // ─── Day Card ──────────────────────────────────────────────
+
 function DayCard({
   day,
   accentColor,
   isExpanded,
   onToggle,
+  isPremium,
+  onUnlock,
 }: {
   day: ItineraryDay;
   accentColor: string;
   isExpanded: boolean;
   onToggle: () => void;
+  isPremium: boolean;
+  onUnlock: () => void;
 }) {
+  const stopCount = day.moments?.length || 0;
+
   return (
-    <View style={styles.dayCard}>
-      <TouchableOpacity
-        style={styles.dayHeader}
-        onPress={onToggle}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.dayBadge, { backgroundColor: accentColor }]}>
-          <Text style={styles.dayBadgeText}>{day.dayNumber}</Text>
-        </View>
-        <View style={styles.dayInfo}>
-          <Text style={styles.dayTitle}>{day.title}</Text>
-          <View style={styles.dayMetaRow}>
-            <Text style={styles.dayMood}>{day.mood}</Text>
-            {day.neighborhood && (
-              <View style={styles.dayNeighborhood}>
-                <Ionicons name="location" size={11} color={colors.textMuted} />
-                <Text style={styles.dayNeighborhoodText}>{day.neighborhood}</Text>
-              </View>
-            )}
+    <LiquidGlassCard style={s.dayCard}>
+
+      {/* ── Header ── */}
+      <TouchableOpacity onPress={onToggle} activeOpacity={0.85}>
+        <View style={s.dayHeader}>
+          {/* Left stripe */}
+          <View style={[s.dayStripe, { backgroundColor: accentColor }]} />
+
+          {/* Day badge */}
+          <View style={s.dayBadgeWrap}>
+            <Text style={[s.dayBadgeNum, { color: accentColor }]}>{day.dayNumber}</Text>
+            <Text style={s.dayBadgeLabel}>DAY</Text>
+          </View>
+
+          {/* Title + mood */}
+          <View style={s.dayInfo}>
+            <Text style={s.dayTitle} numberOfLines={2}>{day.title}</Text>
+            <View style={s.dayMetaRow}>
+              {day.mood ? (
+                <View style={[s.moodPill, { backgroundColor: `${accentColor}18`, borderColor: `${accentColor}35` }]}>
+                  <Text style={[s.moodText, { color: accentColor }]}>{day.mood}</Text>
+                </View>
+              ) : null}
+              <Text style={s.stopCountText}>{stopCount} stop{stopCount !== 1 ? 's' : ''}</Text>
+            </View>
+          </View>
+
+          {/* Chevron */}
+          <View style={[s.chevron, isExpanded && { backgroundColor: `${accentColor}20` }]}>
+            <Ionicons
+              name={isExpanded ? 'chevron-up' : 'chevron-down'}
+              size={16}
+              color={isExpanded ? accentColor : 'rgba(255,255,255,0.25)'}
+            />
           </View>
         </View>
-        <Ionicons
-          name={isExpanded ? 'chevron-up' : 'chevron-down'}
-          size={18}
-          color={colors.textMuted}
-        />
       </TouchableOpacity>
 
-      {/* Day summary (always visible) */}
-      {day.summary && !isExpanded && (
-        <Text style={styles.daySummary} numberOfLines={2}>{day.summary}</Text>
+      {/* ── Collapsed preview ── */}
+      {!isExpanded && stopCount > 0 && (
+        <View style={s.collapsedList}>
+          {day.moments.map((m, i) => {
+            const isLocked = !isPremium && stopCount > 2 && i === stopCount - 1;
+            if (isLocked) {
+              return (
+                <TouchableOpacity key={i} style={s.previewRow} onPress={onUnlock} activeOpacity={0.7}>
+                  <Ionicons name="lock-closed" size={10} color={accentColor} style={{ opacity: 0.7 }} />
+                  <Text style={[s.previewTime, { opacity: 0.3 }]}>{'??:??'}</Text>
+                  <Text style={[s.previewName, { color: `${accentColor}55`, fontStyle: 'italic' }]} numberOfLines={1}>
+                    Unlock to reveal
+                  </Text>
+                  <Ionicons name="chevron-forward" size={11} color={`${accentColor}55`} style={{ marginLeft: 'auto' }} />
+                </TouchableOpacity>
+              );
+            }
+            return (
+              <View key={i} style={s.previewRow}>
+                <View style={[s.previewDot, { backgroundColor: `${accentColor}60` }]} />
+                <Text style={s.previewTime}>{m.timeLabel}</Text>
+                <Text style={s.previewName} numberOfLines={1}>{m.title}</Text>
+              </View>
+            );
+          })}
+        </View>
       )}
 
-      {/* Expanded moments */}
+      {/* ── Expanded content ── */}
       {isExpanded && (
-        <View style={styles.momentsContainer}>
-          {day.summary && (
-            <Text style={styles.daySummaryExpanded}>{day.summary}</Text>
-          )}
-          {day.moments?.map((moment, idx) => (
-            <MomentRow
-              key={moment.id || idx}
-              moment={moment}
-              accentColor={accentColor}
-              isLast={idx === (day.moments?.length || 0) - 1}
-            />
-          ))}
-          <View style={styles.momentCount}>
-            <Text style={styles.momentCountText}>
-              {day.moments?.length || 0} stops
-            </Text>
+        <View style={s.expandedContent}>
+          {day.summary ? (
+            <View style={s.daySummaryBox}>
+              <Ionicons name="sparkles" size={14} color={accentColor} style={{ marginRight: 8, marginTop: 1 }} />
+              <Text style={s.daySummaryText}>{day.summary}</Text>
+            </View>
+          ) : null}
+
+          <View style={s.momentsList}>
+            {day.moments?.map((moment, idx) => {
+              const isLocked = !isPremium && stopCount > 2 && idx === stopCount - 1;
+              return (
+                <React.Fragment key={moment.id || idx}>
+                  <MomentCard
+                    moment={moment}
+                    accentColor={accentColor}
+                    index={idx}
+                    isLast={idx === stopCount - 1}
+                    isLocked={isLocked}
+                    onUnlock={onUnlock}
+                  />
+                  {idx < stopCount - 1 && <MomentConnector color={accentColor} />}
+                </React.Fragment>
+              );
+            })}
           </View>
         </View>
       )}
-    </View>
+    </LiquidGlassCard>
   );
 }
 
 // ─── Main PlanTab ──────────────────────────────────────────
+
 export default function PlanTab() {
-  const { state } = useApp();
+  const { state, actions } = useApp();
   const plan = state.plan;
+  const isPremium = state.isPremium;
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     new Set([plan?.fullDays?.[0]?.id || '0']),
   );
   const [heroPhoto, setHeroPhoto] = useState<string | null>(null);
 
-  // Fetch hero photo
   React.useEffect(() => {
     if (!plan?.destinationCity) return;
     getCityPhoto(plan.destinationCity).then(setHeroPhoto);
   }, [plan?.destinationCity]);
 
+  // Request App Store review once, ~3s after the user first sees their itinerary
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    (async () => {
+      const alreadyAsked = await hasRequestedReview();
+      if (alreadyAsked) return;
+      const isAvailable = await StoreReview.isAvailableAsync();
+      if (!isAvailable) return;
+      timer = setTimeout(async () => {
+        await StoreReview.requestReview();
+        await markReviewRequested();
+      }, 3000);
+    })();
+    return () => clearTimeout(timer);
+  }, []);
+
   if (!plan) return null;
 
   const days = plan.fullDays?.length ? plan.fullDays : plan.previewDays || [];
+  const totalPlaces = days.reduce((sum, d) => sum + (d.moments?.length || 0), 0);
 
   const toggleDay = (dayId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedDays((prev) => {
       const next = new Set(prev);
-      if (next.has(dayId)) {
-        next.delete(dayId);
-      } else {
-        next.add(dayId);
-      }
+      if (next.has(dayId)) next.delete(dayId);
+      else next.add(dayId);
       return next;
     });
   };
 
-  const totalPlaces = days.reduce((sum, d) => sum + (d.moments?.length || 0), 0);
-
   return (
-    <View style={styles.container}>
+    <View style={s.container}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        style={s.scroll}
+        contentContainerStyle={s.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── Hero Section ────────────────────────────── */}
-        <View style={styles.heroSection}>
-          {/* Background photo */}
+        {/* ── Hero ── */}
+        <View style={s.hero}>
           {heroPhoto && (
-            <Image
-              source={{ uri: heroPhoto }}
-              style={styles.heroImage}
-              resizeMode="cover"
-            />
+            <Image source={{ uri: heroPhoto }} style={s.heroImage} resizeMode="cover" />
           )}
-          {/* Gradient overlay */}
           <LinearGradient
-            colors={[
-              'transparent',
-              'rgba(13,17,23,0.4)',
-              'rgba(13,17,23,0.92)',
-              colors.bg,
-            ]}
-            locations={[0, 0.35, 0.7, 1]}
-            style={styles.heroGradient}
+            colors={['transparent', 'rgba(13,13,15,0.45)', 'rgba(13,13,15,0.92)', '#0D0D0F']}
+            locations={[0, 0.35, 0.72, 1]}
+            style={StyleSheet.absoluteFill}
           />
-
-          {/* Hero content */}
-          <View style={styles.heroContent}>
-            <Text style={styles.countryTag}>
-              {plan.destinationCountry?.toUpperCase()}
-            </Text>
-            <Text style={styles.cityName}>{plan.destinationCity}</Text>
+          <View style={s.heroContent}>
+            <Text style={s.heroCountry}>{plan.destinationCountry?.toUpperCase()}</Text>
+            <Text style={s.heroCity}>{plan.destinationCity}</Text>
             {plan.shareLine ? (
-              <Text style={styles.shareLine}>{plan.shareLine}</Text>
+              <Text style={s.heroShareLine}>{plan.shareLine}</Text>
             ) : null}
           </View>
         </View>
 
-        {/* ─── Trip Overview Card ──────────────────────── */}
-        <View style={styles.overviewCard}>
-          {/* Stats row */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <View style={styles.statIconWrap}>
+        {/* ── Overview card ── */}
+        <LiquidGlassCard style={s.overviewCard} intensity={28}>
+          <View style={s.statsRow}>
+            <View style={s.statItem}>
+              <View style={[s.statIcon, { backgroundColor: `${colors.accent}18` }]}>
                 <Ionicons name="calendar" size={18} color={colors.accent} />
               </View>
-              <Text style={styles.statValue}>{days.length}</Text>
-              <Text style={styles.statLabel}>Days</Text>
+              <Text style={s.statValue}>{days.length}</Text>
+              <Text style={s.statLabel}>Days</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <View style={styles.statIconWrap}>
+            <View style={s.statDivider} />
+            <View style={s.statItem}>
+              <View style={[s.statIcon, { backgroundColor: '#A78BFA18' }]}>
                 <Ionicons name="location" size={18} color="#A78BFA" />
               </View>
-              <Text style={styles.statValue}>{totalPlaces}</Text>
-              <Text style={styles.statLabel}>Places</Text>
+              <Text style={s.statValue}>{totalPlaces}</Text>
+              <Text style={s.statLabel}>Places</Text>
             </View>
           </View>
 
-          {/* Intro narrative */}
           {plan.intro ? (
-            <View style={styles.introSection}>
-              <View style={styles.introQuoteMark}>
-                <Ionicons name="chatbubble-ellipses" size={16} color={colors.accent} />
-              </View>
-              <Text style={styles.introText}>{plan.intro}</Text>
+            <View style={s.introBox}>
+              <Ionicons name="chatbubble-ellipses" size={15} color={colors.accent} style={s.introIcon} />
+              <Text style={s.introText}>{plan.intro}</Text>
             </View>
           ) : null}
+        </LiquidGlassCard>
+
+        {/* ── Section divider ── */}
+        <View style={s.sectionDivider}>
+          <View style={s.sectionLine} />
+          <Text style={s.sectionLabel}>YOUR ITINERARY</Text>
+          <View style={s.sectionLine} />
         </View>
 
-        {/* ─── Section label ───────────────────────────── */}
-        <View style={styles.sectionLabel}>
-          <View style={styles.sectionLine} />
-          <Text style={styles.sectionLabelText}>YOUR ITINERARY</Text>
-          <View style={styles.sectionLine} />
-        </View>
-
-        {/* Day Cards */}
+        {/* ── Day cards ── */}
         {days.map((day, idx) => (
           <DayCard
             key={day.id || idx}
             day={day}
-            accentColor={
-              colors.dayAccents[idx % colors.dayAccents.length]
-            }
+            accentColor={colors.dayAccents[idx % colors.dayAccents.length]}
             isExpanded={expandedDays.has(day.id || idx.toString())}
             onToggle={() => toggleDay(day.id || idx.toString())}
+            isPremium={isPremium}
+            onUnlock={() => actions.setPhase('preview')}
           />
         ))}
 
-        {/* Bottom spacer */}
-        <View style={{ height: 40 }} />
+        <View style={{ height: 48 }} />
       </ScrollView>
     </View>
   );
 }
 
 // ─── Styles ────────────────────────────────────────────────
-const styles = StyleSheet.create({
+
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 100 },
 
-  // Hero Section
-  heroSection: {
-    height: 320,
+  // Hero
+  hero: {
+    height: 300,
     justifyContent: 'flex-end',
-    position: 'relative',
   },
   heroImage: {
     ...StyleSheet.absoluteFillObject,
     width: SCREEN_W,
-    height: 320,
-  },
-  heroGradient: {
-    ...StyleSheet.absoluteFillObject,
-    height: 320,
+    height: 300,
   },
   heroContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingHorizontal: 22,
+    paddingBottom: 22,
     zIndex: 2,
   },
-  countryTag: {
+  heroCountry: {
     color: colors.accent,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 4,
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
-  cityName: {
-    color: colors.textPrimary,
-    fontSize: 44,
+    fontSize: 11,
     fontWeight: '800',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0,0,0,0.8)',
+    letterSpacing: 4,
+    marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  heroCity: {
+    color: '#FFFFFF',
+    fontSize: 46,
+    fontWeight: '800',
+    letterSpacing: -1,
+    marginBottom: 6,
+    textShadowColor: 'rgba(0,0,0,0.9)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
   },
-  shareLine: {
-    color: colors.white,
-    fontSize: 15,
-    lineHeight: 22,
+  heroShareLine: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 14,
+    lineHeight: 21,
     fontWeight: '500',
-    opacity: 0.9,
+    fontStyle: 'italic',
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
+    textShadowRadius: 5,
   },
 
-  // Overview Card
+  // Overview card
   overviewCard: {
     marginHorizontal: 16,
-    marginTop: -16,
-    backgroundColor: colors.bgCard,
+    marginTop: -14,
     borderRadius: 24,
     padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
     zIndex: 5,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
     shadowRadius: 20,
-    elevation: 8,
+    elevation: 10,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingHorizontal: 8,
+    marginBottom: 18,
   },
   statItem: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
+    gap: 4,
   },
-  statIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   statValue: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 2,
+    fontSize: 20,
+    fontWeight: '800',
   },
   statLabel: {
-    color: colors.textSecondary,
+    color: colors.textMuted,
     fontSize: 12,
+    fontWeight: '600',
   },
   statDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    height: 36,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    marginHorizontal: 16,
   },
-
-  // Intro inside Overview
-  introSection: {
-    backgroundColor: 'rgba(249,115,22,0.08)',
-    borderRadius: 16,
-    padding: 16,
+  introBox: {
     flexDirection: 'row',
+    backgroundColor: 'rgba(249,115,22,0.07)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.15)',
+    padding: 14,
+    alignItems: 'flex-start',
   },
-  introQuoteMark: {
-    marginRight: 12,
+  introIcon: {
+    marginRight: 10,
     marginTop: 2,
   },
   introText: {
+    flex: 1,
     color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 22,
-    flex: 1,
     fontStyle: 'italic',
   },
 
-  // Section Label
-  sectionLabel: {
+  // Section divider
+  sectionDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 24,
-    marginTop: 32,
-    marginBottom: 20,
+    marginHorizontal: 22,
+    marginTop: 30,
+    marginBottom: 18,
   },
   sectionLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  sectionLabelText: {
+  sectionLabel: {
     color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 2,
-    paddingHorizontal: 16,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 2.5,
+    paddingHorizontal: 14,
   },
 
-  // Day Card
+  // ─── Day Card ─────────────────────────────────────────────
+
   dayCard: {
-    marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: '#13151A', borderRadius: 24,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 8,
-  },
-  dayHeader: {
-    flexDirection: 'row', alignItems: 'center', padding: 20,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.02)',
-  },
-  dayBadge: {
-    width: 46, height: 46, borderRadius: 14,
-    justifyContent: 'center', alignItems: 'center', marginRight: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 6,
-  },
-  dayBadgeText: {
-    color: colors.white, fontSize: 18, fontWeight: '800',
-  },
-  dayInfo: { flex: 1 },
-  dayTitle: {
-    color: colors.white, fontSize: 17, fontWeight: '800', letterSpacing: -0.3,
-  },
-  dayMetaRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3,
-  },
-  dayMood: {
-    color: colors.textMuted, fontSize: 13,
-  },
-  dayNeighborhood: {
-    flexDirection: 'row', alignItems: 'center', gap: 3,
-  },
-  dayNeighborhoodText: {
-    color: colors.textMuted, fontSize: 12,
-  },
-  daySummary: {
-    color: colors.textMuted, fontSize: 13, lineHeight: 19,
-    paddingHorizontal: 18, paddingBottom: 14, marginTop: -4,
-  },
-  daySummaryExpanded: {
-    color: colors.textSecondary, fontSize: 14, lineHeight: 21,
-    marginBottom: 18, fontStyle: 'italic',
-  },
-
-  // Moments
-  momentsContainer: { paddingHorizontal: 18, paddingBottom: 18 },
-  momentRow: { flexDirection: 'row', marginBottom: 16 },
-  timelineCol: { width: 24, alignItems: 'center' },
-  timelineDot: { 
-    width: 14, height: 14, borderRadius: 7, 
-    marginTop: 24, 
-    borderWidth: 3, borderColor: colors.bg, 
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 3 
-  },
-  timelineLine: { width: 2, flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginTop: 4 },
-  
-  momentContent: { 
-    flex: 1, 
-    marginLeft: 12,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderRadius: 20,
-    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: 'transparent',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(255,255,255,0.07)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingRight: 16,
+  },
+  dayStripe: {
+    width: 4,
+    height: 56,
+    borderRadius: 4,
+    marginRight: 14,
+  },
+  dayBadgeWrap: {
+    alignItems: 'center',
+    marginRight: 14,
+    minWidth: 36,
+  },
+  dayBadgeNum: {
+    fontSize: 26,
+    fontWeight: '800',
+    lineHeight: 28,
+  },
+  dayBadgeLabel: {
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginTop: 1,
+  },
+  dayInfo: {
+    flex: 1,
+  },
+  dayTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    marginBottom: 6,
+    lineHeight: 22,
+  },
+  dayMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  moodPill: {
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderWidth: 1,
+  },
+  moodText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  stopCountText: {
+    color: 'rgba(255,255,255,0.22)',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  chevron: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
 
-  // Time + duration
-  timeRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  momentTime: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
-  durationTag: { color: colors.textMuted, fontSize: 12, marginLeft: 6, fontWeight: '600' },
+  // Collapsed preview
+  collapsedList: {
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+    paddingTop: 4,
+    gap: 8,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  previewDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  previewTime: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 11,
+    fontWeight: '700',
+    width: 44,
+  },
+  previewName: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
 
-  // Title + category
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' },
-  momentTitle: { color: colors.white, fontSize: 17, fontWeight: '800', flexShrink: 1, letterSpacing: -0.3 },
+  // Expanded
+  expandedContent: {
+    paddingBottom: 16,
+  },
+  daySummaryBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    marginTop: 4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  daySummaryText: {
+    flex: 1,
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 21,
+    fontStyle: 'italic',
+  },
+  momentsList: {
+    paddingHorizontal: 14,
+    gap: 0,
+  },
+
+  // Connector between cards
+  connectorWrap: {
+    alignItems: 'flex-start',
+    paddingLeft: 19,
+  },
+  connectorLine: {
+    width: 2,
+    height: 16,
+    borderRadius: 1,
+  },
+
+  // ─── Moment Card ──────────────────────────────────────────
+
+  momentCard: {
+    flexDirection: 'row',
+    backgroundColor: 'transparent',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  momentAccentBar: {
+    width: 3,
+    borderRadius: 3,
+    margin: 14,
+    marginRight: 0,
+  },
+  momentContent: {
+    flex: 1,
+    padding: 14,
+    paddingLeft: 12,
+    gap: 0,
+  },
+
+  // Header row
+  momentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 10,
+  },
+  stopNum: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopNumText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  timePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  timePillText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  headerSpacer: {
+    flex: 1,
+  },
+  durationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  durationText: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '600',
+  },
   categoryBadge: {
-    backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10,
-    paddingHorizontal: 8, paddingVertical: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
-  categoryText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  categoryText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
 
+  // Body
+  momentBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  momentBodyLeft: {},
+  momentTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+    marginBottom: 3,
+    lineHeight: 22,
+  },
   momentSubtitle: {
-    color: colors.textSecondary, fontSize: 14, fontStyle: 'italic', marginBottom: 8,
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontStyle: 'italic',
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 6,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  ratingText: {
+    color: '#F59E0B',
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 3,
+  },
+  reviewCount: {
+    color: colors.textMuted,
+    fontSize: 10,
+  },
+  priceLevel: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  priceLevelDim: {
+    color: 'rgba(255,255,255,0.12)',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  infoRowText: {
+    color: colors.textMuted,
+    fontSize: 11,
+    flex: 1,
+  },
+  momentThumb: {
+    width: 76,
+    height: 76,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
 
-  // Rating + price
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 6 },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { color: '#F59E0B', fontSize: 12, fontWeight: '600', marginLeft: 2 },
-  reviewCount: { color: colors.textMuted, fontSize: 11 },
-  priceLevel: { color: colors.accent, fontSize: 12, fontWeight: '600' },
-  priceLevelDim: { color: 'rgba(255,255,255,0.15)' },
-
-  // Location
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
-  locationText: { color: colors.textMuted, fontSize: 12, flex: 1 },
-
-  // Rationale (AI narrative)
+  // Rationale
   momentRationale: {
-    color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: 4,
+    color: 'rgba(255,255,255,0.48)',
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 10,
   },
 
-  // Expanded details
-  expandedSection: { marginTop: 8 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  detailText: { color: colors.textMuted, fontSize: 12, flex: 1 },
-  transitRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 10,
-    padding: 10, marginBottom: 6,
+  // Chips
+  chips: {
+    gap: 7,
+    marginBottom: 12,
   },
-  transitText: { color: colors.textSecondary, fontSize: 12, flex: 1, lineHeight: 18 },
-  avoidRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    backgroundColor: 'rgba(239,68,68,0.08)', borderRadius: 10,
-    padding: 10, marginBottom: 6,
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 9,
   },
-  avoidText: { color: '#F87171', fontSize: 12, flex: 1, lineHeight: 18 },
+  avoidChip: {
+    borderColor: 'rgba(248,113,113,0.25)',
+    backgroundColor: 'rgba(239,68,68,0.07)',
+  },
+  chipText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+
+  // Maps button
   mapsBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4,
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
   },
-  mapsBtnText: { fontSize: 13, fontWeight: '600' },
-  tapHint: { color: 'rgba(255,255,255,0.15)', fontSize: 11, marginTop: 2 },
+  mapsBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
 
-  // Moment count
-  momentCount: {
-    alignItems: 'center', paddingTop: 8,
-    borderTopWidth: 1, borderTopColor: colors.border, marginTop: 4,
+  // Locked overlay
+  lockedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    padding: 20,
   },
-  momentCountText: { color: colors.textMuted, fontSize: 12 },
+  lockIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  lockedTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  lockedSub: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  unlockBtn: {
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 9,
+    marginTop: 4,
+  },
+  unlockBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
 });

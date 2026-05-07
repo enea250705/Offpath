@@ -1,12 +1,12 @@
 // Offpath — Liquid Glass Tab Bar
-// Premium frosted glass tab bar with animated pill indicator,
-// spring bounce icons, and ambient glow effects.
+// Frosted glass tab bar with sliding pill indicator,
+// press-in squish feedback, and ambient glow.
 import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Animated,
   Dimensions,
   Platform,
@@ -19,13 +19,13 @@ import { colors } from '../theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const TAB_BAR_H = 72;
-const TAB_BAR_MARGIN_H = 20;
+const TAB_BAR_MARGIN_H = 16;
 const TAB_BAR_MARGIN_BOTTOM = Platform.OS === 'ios' ? 28 : 16;
 const TAB_BAR_WIDTH = SCREEN_W - TAB_BAR_MARGIN_H * 2;
 const TAB_COUNT = 4;
 const TAB_WIDTH = TAB_BAR_WIDTH / TAB_COUNT;
-const PILL_WIDTH = TAB_WIDTH - 12;
-const PILL_HEIGHT = 44;
+const PILL_W = TAB_WIDTH - 16;
+const PILL_H = 46;
 
 interface TabMeta {
   icon: keyof typeof Ionicons.glyphMap;
@@ -41,222 +41,151 @@ const TABS: Record<string, TabMeta> = {
   You:    { icon: 'person-outline',     iconActive: 'person',     label: 'You' },
 };
 
-export default function LiquidGlassTabBar({
-  state,
-  descriptors,
-  navigation,
-}: BottomTabBarProps) {
-  const pillX = useRef(new Animated.Value(0)).current;
-  const glowOpacity = useRef(new Animated.Value(0.6)).current;
-  const iconScales = useRef(
-    state.routes.map(() => new Animated.Value(1)),
-  ).current;
-  const iconTranslateY = useRef(
-    state.routes.map(() => new Animated.Value(0)),
-  ).current;
+export default function LiquidGlassTabBar({ state, navigation }: BottomTabBarProps) {
+  // Pill slides to active tab
+  const pillX = useRef(new Animated.Value(state.index * TAB_WIDTH)).current;
+  const glowOpacity = useRef(new Animated.Value(0.5)).current;
 
-  // Slide pill to active tab
+  // Per-tab: press squish + icon scale + label opacity
+  const pressScales = useRef(state.routes.map(() => new Animated.Value(1))).current;
+  const iconScales  = useRef(state.routes.map((_, i) => new Animated.Value(i === state.index ? 1.1 : 1))).current;
+
   useEffect(() => {
-    const targetX = state.index * TAB_WIDTH;
+    // Slide pill
     Animated.spring(pillX, {
-      toValue: targetX,
-      damping: 16,
-      stiffness: 160,
+      toValue: state.index * TAB_WIDTH,
+      damping: 20,
+      stiffness: 220,
       mass: 0.8,
       useNativeDriver: true,
     }).start();
 
-    // Glow pulse on change
+    // Pulse glow
     Animated.sequence([
-      Animated.timing(glowOpacity, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(glowOpacity, {
-        toValue: 0.5,
-        duration: 600,
-        useNativeDriver: true,
-      }),
+      Animated.timing(glowOpacity, { toValue: 1,   duration: 120, useNativeDriver: true }),
+      Animated.timing(glowOpacity, { toValue: 0.5, duration: 500, useNativeDriver: true }),
     ]).start();
+
+    // Icon scale + label opacity per tab
+    state.routes.forEach((_, i) => {
+      const active = i === state.index;
+      Animated.spring(iconScales[i], {
+        toValue: active ? 1.1 : 1,
+        damping: 16,
+        stiffness: 260,
+        useNativeDriver: true,
+      }).start();
+    });
   }, [state.index]);
 
-  // Icon bounce on select
-  const bounceIcon = (index: number) => {
-    // Reset all icons
-    iconScales.forEach((s, i) => {
-      if (i !== index) {
-        Animated.spring(s, {
-          toValue: 1,
-          damping: 20,
-          stiffness: 200,
-          useNativeDriver: true,
-        }).start();
-        Animated.spring(iconTranslateY[i], {
-          toValue: 0,
-          damping: 20,
-          stiffness: 200,
-          useNativeDriver: true,
-        }).start();
-      }
-    });
-
-    // Bounce selected
-    Animated.sequence([
-      Animated.spring(iconScales[index], {
-        toValue: 0.75,
-        damping: 30,
-        stiffness: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(iconScales[index], {
-        toValue: 1.15,
-        damping: 8,
-        stiffness: 250,
-        mass: 0.6,
-        useNativeDriver: true,
-      }),
-      Animated.spring(iconScales[index], {
-        toValue: 1,
-        damping: 14,
-        stiffness: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Lift up
-    Animated.spring(iconTranslateY[index], {
-      toValue: -2,
-      damping: 14,
-      stiffness: 200,
+  const onPressIn = (i: number) => {
+    Animated.spring(pressScales[i], {
+      toValue: 0.80,
+      damping: 50,
+      stiffness: 700,
       useNativeDriver: true,
     }).start();
   };
 
+  const onPressOut = (i: number) => {
+    Animated.spring(pressScales[i], {
+      toValue: 1,
+      damping: 9,
+      stiffness: 260,
+      mass: 0.55,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const onPress = (index: number, route: (typeof state.routes)[number]) => {
+    const isFocused = state.index === index;
+    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+    if (!isFocused && !event.defaultPrevented) {
+      navigation.navigate(route.name, route.params);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* Outer glow / shadow layer */}
       <View style={styles.shadowLayer} />
 
-      {/* Glass bar */}
       <View style={styles.barWrapper}>
-        <BlurView
-          intensity={40}
-          tint="dark"
-          style={styles.blurView}
-        >
-          {/* Inner glass layers */}
-          <View style={styles.glassInner}>
-            {/* Subtle gradient overlay for depth */}
+        <BlurView intensity={45} tint="dark" style={StyleSheet.absoluteFill} />
+
+        {/* Glass gradient */}
+        <LinearGradient
+          colors={['rgba(255,255,255,0.09)', 'rgba(255,255,255,0.02)', 'rgba(0,0,0,0.05)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+
+        {/* Top rim */}
+        <View style={styles.topRim} />
+
+        {/* Dark tint base */}
+        <View style={styles.darkBase} />
+
+        {/* Sliding pill */}
+        <Animated.View style={[styles.pillWrapper, { transform: [{ translateX: pillX }] }]}>
+          <View style={styles.pillShape}>
+            <Animated.View style={[styles.pillGlow, { opacity: glowOpacity }]} />
             <LinearGradient
-              colors={[
-                'rgba(255,255,255,0.08)',
-                'rgba(255,255,255,0.03)',
-                'rgba(255,255,255,0.01)',
-              ]}
+              colors={['rgba(249,115,22,0.26)', 'rgba(249,115,22,0.09)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
-              style={styles.glassGradient}
-            />
-
-            {/* Top edge highlight — gives the glass a bright rim */}
-            <View style={styles.topEdge} />
-
-            {/* Animated pill wrapper (matches tab width perfectly) */}
-            <Animated.View
-              style={[
-                styles.pillWrapper,
-                { transform: [{ translateX: pillX }] },
-              ]}
+              style={styles.pillBody}
             >
-              {/* Actual pill shape centered inside */}
-              <View style={styles.pillShape}>
-                {/* Pill glow (behind) */}
-                <Animated.View style={[styles.pillGlow, { opacity: glowOpacity }]} />
-                {/* Pill body */}
-                <LinearGradient
-                  colors={['rgba(249,115,22,0.25)', 'rgba(249,115,22,0.08)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={styles.pillBody}
-                >
-                  {/* Pill inner top highlight */}
-                  <View style={styles.pillHighlight} />
-                </LinearGradient>
-              </View>
-            </Animated.View>
-
-            {/* Tab buttons */}
-            <View style={styles.tabsRow}>
-              {state.routes.map((route, index) => {
-                const isFocused = state.index === index;
-                const meta = TABS[route.name] || {
-                  icon: 'ellipse-outline' as keyof typeof Ionicons.glyphMap,
-                  iconActive: 'ellipse' as keyof typeof Ionicons.glyphMap,
-                  label: route.name,
-                };
-
-                const onPress = () => {
-                  const event = navigation.emit({
-                    type: 'tabPress',
-                    target: route.key,
-                    canPreventDefault: true,
-                  });
-                  if (!isFocused && !event.defaultPrevented) {
-                    bounceIcon(index);
-                    navigation.navigate(route.name, route.params);
-                  }
-                };
-
-                return (
-                  <TouchableOpacity
-                    key={route.key}
-                    onPress={onPress}
-                    activeOpacity={0.7}
-                    style={styles.tab}
-                    accessibilityRole="button"
-                    accessibilityState={isFocused ? { selected: true } : {}}
-                    accessibilityLabel={meta.label}
-                  >
-                    <Animated.View
-                      style={[
-                        styles.tabContent,
-                        {
-                          transform: [
-                            { scale: iconScales[index] },
-                            { translateY: iconTranslateY[index] },
-                          ],
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name={isFocused ? meta.iconActive : meta.icon}
-                        size={22}
-                        color={
-                          isFocused
-                            ? '#F97316'
-                            : 'rgba(255,255,255,0.35)'
-                        }
-                        style={isFocused ? styles.iconGlow : undefined}
-                      />
-                      <Text
-                        style={[
-                          styles.tabLabel,
-                          isFocused && styles.tabLabelActive,
-                        ]}
-                      >
-                        {meta.label}
-                      </Text>
-                    </Animated.View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+              <View style={styles.pillHighlight} />
+            </LinearGradient>
           </View>
-        </BlurView>
+        </Animated.View>
 
-        {/* Bottom border glow line */}
-        <View style={styles.bottomGlowLine} />
+        {/* Tabs */}
+        <View style={styles.tabsRow}>
+          {state.routes.map((route, index) => {
+            const isFocused = state.index === index;
+            const meta = TABS[route.name] ?? {
+              icon: 'ellipse-outline' as keyof typeof Ionicons.glyphMap,
+              iconActive: 'ellipse' as keyof typeof Ionicons.glyphMap,
+              label: route.name,
+            };
+
+            return (
+              <Pressable
+                key={route.key}
+                onPressIn={() => onPressIn(index)}
+                onPressOut={() => onPressOut(index)}
+                onPress={() => onPress(index, route)}
+                style={styles.tab}
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                accessibilityLabel={meta.label}
+              >
+                <Animated.View
+                  style={[
+                    styles.tabContent,
+                    {
+                      transform: [
+                        { scale: Animated.multiply(pressScales[index], iconScales[index]) },
+                      ],
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name={isFocused ? meta.iconActive : meta.icon}
+                    size={22}
+                    color={isFocused ? '#F97316' : 'rgba(255,255,255,0.32)'}
+                    style={isFocused ? styles.iconGlow : undefined}
+                  />
+                  <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]} numberOfLines={1}>
+                    {meta.label}
+                  </Text>
+                </Animated.View>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
@@ -271,19 +200,16 @@ const styles = StyleSheet.create({
     height: TAB_BAR_H,
     zIndex: 100,
   },
-
-  // Shadow under the entire bar
   shadowLayer: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 28,
     backgroundColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 20,
+    shadowOpacity: 0.55,
+    shadowRadius: 26,
+    elevation: 22,
   },
-
   barWrapper: {
     flex: 1,
     borderRadius: 28,
@@ -291,35 +217,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
   },
-
-  blurView: {
-    flex: 1,
-    borderRadius: 28,
-    overflow: 'hidden',
-  },
-
-  glassInner: {
-    flex: 1,
-    position: 'relative',
-    backgroundColor: 'rgba(12,12,16,0.55)',
-  },
-
-  glassGradient: {
+  darkBase: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 28,
+    backgroundColor: 'rgba(10,10,14,0.58)',
   },
-
-  topEdge: {
+  topRim: {
     position: 'absolute',
     top: 0,
-    left: 20,
-    right: 20,
+    left: 18,
+    right: 18,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.13)',
+    zIndex: 2,
   },
 
-  // ─── Pill Indicator ─────────────────────────────
+  // Pill
   pillWrapper: {
     position: 'absolute',
     top: 0,
@@ -330,86 +242,69 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1,
   },
-
   pillShape: {
-    width: PILL_WIDTH,
-    height: PILL_HEIGHT,
+    width: PILL_W,
+    height: PILL_H,
   },
-
   pillGlow: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
-    backgroundColor: 'rgba(249,115,22,0.15)',
-    top: -4,
-    bottom: -4,
-    left: -4,
-    right: -4,
+    top: -6,
+    bottom: -6,
+    left: -8,
+    right: -8,
+    borderRadius: 18,
+    backgroundColor: 'rgba(249,115,22,0.10)',
     shadowColor: '#F97316',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
   },
-
   pillBody: {
     flex: 1,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(249,115,22,0.25)',
+    borderColor: 'rgba(249,115,22,0.30)',
+    overflow: 'hidden',
   },
-
   pillHighlight: {
     position: 'absolute',
     top: 0,
-    left: 12,
-    right: 12,
+    left: 14,
+    right: 14,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(255,255,255,0.20)',
     borderRadius: 1,
   },
 
-  // ─── Tabs ───────────────────────────────────────
+  // Tabs
   tabsRow: {
     ...StyleSheet.absoluteFillObject,
     flexDirection: 'row',
     zIndex: 10,
   },
-
   tab: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   tabContent: {
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 3,
   },
-
   iconGlow: {
-    textShadowColor: 'rgba(249,115,22,0.6)',
+    textShadowColor: 'rgba(249,115,22,0.70)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,
   },
-
   tabLabel: {
     fontSize: 10,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.30)',
-    letterSpacing: 0.3,
-    marginTop: 3,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.32)',
+    letterSpacing: 0.2,
   },
-
   tabLabelActive: {
-    color: 'rgba(249,115,22,0.95)',
+    color: '#F97316',
     fontWeight: '700',
-  },
-
-  bottomGlowLine: {
-    position: 'absolute',
-    bottom: 0,
-    left: 24,
-    right: 24,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.05)',
   },
 });

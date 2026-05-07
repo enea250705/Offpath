@@ -96,6 +96,7 @@ export interface TripPlan {
   travelerGroup?: string;
   totalPlaces?: number;
   neighborhoodGroups?: string[];  // List of neighborhoods covered
+  createdAt?: string;             // ISO date string when trip was generated
 }
 
 // ─── Auth ──────────────────────────────────────────────────
@@ -123,20 +124,20 @@ export const PURCHASE_PRODUCTS: PurchaseProduct[] = [
     tier: 'trippass',
     label: 'Trip Pass',
     price: '$2.99',
-    description: 'One full destination',
+    description: 'All stops unlocked · one destination',
   },
   {
     id: 'com.offpath.app.trippack3',
     tier: 'tripack3',
     label: '3 Trip Pack',
     price: '$6.99',
-    description: 'Your next three escapes',
+    description: 'All stops unlocked · three destinations',
   },
   {
     id: 'com.offpath.app.yearly',
     tier: 'yearly',
     label: 'Yearly',
     price: '$19.99',
-    description: 'Plan every trip',
+    description: 'All stops unlocked · unlimited trips',
   },
 ];

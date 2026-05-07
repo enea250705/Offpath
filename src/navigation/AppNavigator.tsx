@@ -18,11 +18,13 @@ import HiddenTab from '../screens/trip/HiddenTab';
 import GuideTab from '../screens/trip/GuideTab';
 import MapTab from '../screens/trip/MapTab';
 import YouTab from '../screens/trip/YouTab';
+import HistoryScreen from '../screens/trip/HistoryScreen';
 
 // Custom tab bar
 import LiquidGlassTabBar from '../components/LiquidGlassTabBar';
 
 const Stack = createStackNavigator();
+const TripStack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // ─── Trip Tab Navigator ────────────────────────────────────
@@ -39,6 +41,20 @@ function TripTabs() {
       <Tab.Screen name="Map" component={MapTab} />
       <Tab.Screen name="You" component={YouTab} />
     </Tab.Navigator>
+  );
+}
+
+// ─── Trip Stack (Tabs + History modal) ────────────────────
+function TripNavigator() {
+  return (
+    <TripStack.Navigator screenOptions={{ headerShown: false }}>
+      <TripStack.Screen name="TripTabs" component={TripTabs} />
+      <TripStack.Screen
+        name="History"
+        component={HistoryScreen}
+        options={{ ...TransitionPresets.SlideFromRightIOS }}
+      />
+    </TripStack.Navigator>
   );
 }
 
@@ -94,7 +110,7 @@ export default function AppNavigator() {
         {state.phase === 'trip' && (
           <Stack.Screen
             name="Trip"
-            component={TripTabs}
+            component={TripNavigator}
             options={{ ...TransitionPresets.FadeFromBottomAndroid }}
           />
         )}

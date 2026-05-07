@@ -1,0 +1,102 @@
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.h b/node_modules/react-native-maps/ios/AirMaps/AIRMap.h
+index 17c1755..169ca5b 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.h
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.h
+@@ -76,6 +76,7 @@ extern const NSInteger AIRMapMaxZoomLevel;
+ 
+ @property (nonatomic, copy) RCTDirectEventBlock onCalloutPress;
+ @property (nonatomic, copy) RCTDirectEventBlock onUserLocationChange;
++@property (nonatomic, copy) RCTDirectEventBlock onPoiClick;
+ 
+ - (void)cacheViewIfNeeded;
+ - (void)beginLoading;
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm b/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm
+index f7da1e0..968274a 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm
+@@ -110,6 +110,10 @@ const NSInteger AIRMapMaxZoomLevel = 20;
+         _initialized = YES;
+         _showsPointsOfInterests = YES;
+         _pointsOfInterestFilter = @[];
++        // Enable POI tap support on iOS 16+
++        if (@available(iOS 16.0, *)) {
++            self.selectableMapFeatures = MKMapFeatureOptionsPointsOfInterest;
++        }
+         [self listenToMemoryWarnings];
+     }
+     return self;
+diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m b/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m
+index d034034..deeb856 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m
++++ b/node_modules/react-native-maps/ios/AirMaps/AIRMapManager.m
+@@ -128,6 +128,7 @@ RCT_EXPORT_VIEW_PROPERTY(onMarkerDrag, RCTDirectEventBlock)
+ RCT_EXPORT_VIEW_PROPERTY(onMarkerDragEnd, RCTDirectEventBlock)
+ RCT_EXPORT_VIEW_PROPERTY(onCalloutPress, RCTDirectEventBlock)
+ RCT_EXPORT_VIEW_PROPERTY(onUserLocationChange, RCTDirectEventBlock)
++RCT_EXPORT_VIEW_PROPERTY(onPoiClick, RCTDirectEventBlock)
+ RCT_CUSTOM_VIEW_PROPERTY(initialRegion, MKCoordinateRegion, AIRMap)
+ {
+     if (json == nil) return;
+@@ -786,6 +787,28 @@ RCT_EXPORT_METHOD(getAddressFromCoordinates:(nonnull NSNumber *)reactTag
+     } else if ([view.annotation isKindOfClass:[MKUserLocation class]] && mapView.userLocationAnnotationTitle != nil && view.annotation.title != mapView.userLocationAnnotationTitle) {
+         [(MKUserLocation*)view.annotation setTitle: mapView.userLocationAnnotationTitle];
+     }
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wunguarded-availability-new"
++    else if (@available(iOS 16.0, *)) {
++        if ([view.annotation isKindOfClass:[MKMapFeatureAnnotation class]]) {
++            MKMapFeatureAnnotation *featureAnnotation = (MKMapFeatureAnnotation *)view.annotation;
++            NSString *name = featureAnnotation.title ?: @"";
++            CLLocationCoordinate2D coord = featureAnnotation.coordinate;
++            // Immediately deselect so Apple Maps doesn't show its own callout
++            [mapView deselectAnnotation:featureAnnotation animated:NO];
++            if (mapView.onPoiClick) {
++                mapView.onPoiClick(@{
++                    @"name": name,
++                    @"coordinate": @{
++                        @"latitude": @(coord.latitude),
++                        @"longitude": @(coord.longitude)
++                    },
++                    @"placeId": @""
++                });
++            }
++        }
++    }
++#pragma clang diagnostic pop
+ 
+ }
+ 
+diff --git a/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm b/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm
+index 447520d..de2e234 100644
+--- a/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm
++++ b/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm
+@@ -425,6 +425,29 @@ mapViewEventEmitter->emitterFunction(data);                               \
+     _view.onMarkerPress = [self](NSDictionary* dictionary) {
+         HANDLE_MARKER_EVENT(OnMarkerPress, onMarkerPress, "marker-press");
+     };
++
++    _view.onPoiClick = [self](NSDictionary* dictionary) {
++        if (_eventEmitter) {
++            NSDictionary* coordinateDict = dictionary[@"coordinate"];
++            auto mapViewEventEmitter =
++                std::static_pointer_cast<RNMapsMapViewEventEmitter const>(_eventEmitter);
++            facebook::react::RNMapsMapViewEventEmitter::OnPoiClickCoordinate coordinate = {
++                .latitude = [coordinateDict[@"latitude"] doubleValue],
++                .longitude = [coordinateDict[@"longitude"] doubleValue],
++            };
++            facebook::react::RNMapsMapViewEventEmitter::OnPoiClickPosition position = {
++                .x = 0,
++                .y = 0,
++            };
++            facebook::react::RNMapsMapViewEventEmitter::OnPoiClick data = {
++                .placeId = std::string([@"" UTF8String]),
++                .name = std::string([[dictionary[@"name"] ?: @""] UTF8String]),
++                .coordinate = coordinate,
++                .position = position,
++            };
++            mapViewEventEmitter->onPoiClick(data);
++        }
++    };
+ }
+ - (instancetype)initWithFrame:(CGRect)frame
+ {

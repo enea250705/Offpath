@@ -1,5 +1,5 @@
 // Offpath — You Tab (Account / Profile)
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,51 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ImageBackground,
+  Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
 import { useApp } from '../../store/AppContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme';
+import { TripPlan } from '../../types';
+import { getCityPhoto } from '../../services/pexels';
+import LiquidGlassCard from '../../components/LiquidGlassCard';
+
+const PREVIEW_COUNT = 3;
+
+const SCREEN_W = Dimensions.get('window').width;
+const CARD_W = SCREEN_W - 32;
+
+const STYLE_EMOJI: Record<string, string> = {
+  slow: '🌿',
+  food: '🍜',
+  culture: '🏛️',
+  nightlife: '🌙',
+};
 
 export default function YouTab() {
+  const navigation = useNavigation<any>();
   const { state, actions } = useApp();
   const user = state.user;
   const plan = state.plan;
   const isPremium = state.isPremium;
+  const tripHistory = state.tripHistory ?? [];
+  const previewHistory = tripHistory.slice(0, PREVIEW_COUNT);
 
-  // Initials
+  const [historyPhotos, setHistoryPhotos] = useState<Record<string, string | null>>({});
+
+  // Fetch photos only for the 3 preview cards
+  useEffect(() => {
+    previewHistory.forEach((trip) => {
+      const key = trip.id ?? trip.destinationCity;
+      if (historyPhotos[key] !== undefined) return;
+      getCityPhoto(trip.destinationCity).then((url) => {
+        setHistoryPhotos((prev) => ({ ...prev, [key]: url }));
+      });
+    });
+  }, [tripHistory]);
+
   const getInitials = () => {
     if (!user?.displayName) return '?';
     const parts = user.displayName.trim().split(/\s+/);
@@ -34,12 +67,95 @@ export default function YouTab() {
       'This will clear all your data and return to onboarding.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: () => actions.logout(),
-        },
+        { text: 'Sign Out', style: 'destructive', onPress: () => actions.logout() },
       ],
+    );
+  };
+
+  const handleNewTrip = () => {
+    Alert.alert(
+      'Plan a new trip?',
+      'Your current trip will be saved to your travel history.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: "Let's go", onPress: () => actions.startNewTrip() },
+      ],
+    );
+  };
+
+  const formatTripDate = (createdAt?: string) => {
+    if (!createdAt) return '';
+    return new Date(createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  };
+
+  const renderHistoryCard = (trip: TripPlan, index: number) => {
+    const key = trip.id ?? trip.destinationCity;
+    const photo = historyPhotos[key];
+    const days = trip.fullDays?.length || trip.previewDays?.length || 0;
+    const emoji = STYLE_EMOJI[trip.travelStyle ?? ''] ?? '✈️';
+    const date = formatTripDate(trip.createdAt);
+
+    const cardContent = (
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.82)']}
+        locations={[0, 0.45, 1]}
+        style={styles.historyCardGradient}
+      >
+        {/* Top row */}
+        <View style={styles.historyCardTop}>
+          <View style={styles.historyStyleBadge}>
+            <Text style={styles.historyStyleEmoji}>{emoji}</Text>
+            {trip.travelStyle && (
+              <Text style={styles.historyStyleText}>{trip.travelStyle}</Text>
+            )}
+          </View>
+          {date ? <Text style={styles.historyCardDate}>{date}</Text> : null}
+        </View>
+
+        {/* Bottom content */}
+        <View style={styles.historyCardBottom}>
+          <Text style={styles.historyCardCity}>{trip.destinationCity}</Text>
+          <Text style={styles.historyCardCountry}>{trip.destinationCountry}</Text>
+          <View style={styles.historyCardMeta}>
+            {days > 0 && (
+              <View style={styles.historyMetaPill}>
+                <Text style={styles.historyMetaPillText}>{days} days</Text>
+              </View>
+            )}
+            {trip.travelerGroup && (
+              <View style={styles.historyMetaPill}>
+                <Text style={styles.historyMetaPillText}>{trip.travelerGroup}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </LinearGradient>
+    );
+
+    if (photo) {
+      return (
+        <ImageBackground
+          key={key}
+          source={{ uri: photo }}
+          style={styles.historyCard}
+          imageStyle={styles.historyCardImage}
+        >
+          {cardContent}
+        </ImageBackground>
+      );
+    }
+
+    // Fallback gradient when no photo yet
+    return (
+      <LinearGradient
+        key={key}
+        colors={['#1a1208', '#2d1b0e', '#3d2510']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.historyCard}
+      >
+        {cardContent}
+      </LinearGradient>
     );
   };
 
@@ -66,9 +182,7 @@ export default function YouTab() {
             <Text style={styles.avatarText}>{getInitials()}</Text>
           </LinearGradient>
 
-          <Text style={styles.userName}>
-            {user?.displayName || 'Traveler'}
-          </Text>
+          <Text style={styles.userName}>{user?.displayName || 'Traveler'}</Text>
           <Text style={styles.userEmail}>{user?.email || ''}</Text>
 
           {isPremium && (
@@ -80,7 +194,7 @@ export default function YouTab() {
 
         {/* Current Trip */}
         {plan && (
-          <View style={styles.tripCard}>
+          <LiquidGlassCard style={styles.tripCard} intensity={25}>
             <View style={styles.tripCardHeader}>
               <Text style={styles.tripCardLabel}>CURRENT TRIP</Text>
             </View>
@@ -91,33 +205,75 @@ export default function YouTab() {
                 {plan.fullDays?.length || plan.previewDays?.length || 0} days
               </Text>
             </View>
-          </View>
+          </LiquidGlassCard>
         )}
+
+        {/* New Trip Button */}
+        <TouchableOpacity
+          style={styles.newTripButton}
+          onPress={handleNewTrip}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.newTripIcon}>＋</Text>
+          <Text style={styles.newTripText}>Plan a new trip</Text>
+        </TouchableOpacity>
+
+        {/* Travel History */}
+        <View style={styles.historySection}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.historySectionTitle}>TRAVEL HISTORY</Text>
+            {tripHistory.length > PREVIEW_COUNT && (
+              <TouchableOpacity onPress={() => navigation.navigate('History')} activeOpacity={0.7}>
+                <Text style={styles.seeAllText}>See all {tripHistory.length}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {tripHistory.length === 0 ? (
+            <LiquidGlassCard style={styles.historyEmpty} intensity={20}>
+              <Text style={styles.historyEmptyIcon}>🗺️</Text>
+              <Text style={styles.historyEmptyText}>No past trips yet. Your adventures will show up here.</Text>
+            </LiquidGlassCard>
+          ) : (
+            <>
+              {previewHistory.map((trip, i) => renderHistoryCard(trip, i))}
+              {tripHistory.length > PREVIEW_COUNT && (
+                <LiquidGlassCard
+                  style={styles.seeAllButton}
+                  intensity={20}
+                  onPress={() => navigation.navigate('History')}
+                >
+                  <Text style={styles.seeAllButtonText}>See all {tripHistory.length} trips</Text>
+                  <Text style={styles.seeAllArrow}>→</Text>
+                </LiquidGlassCard>
+              )}
+            </>
+          )}
+        </View>
 
         {/* Upgrade (if not premium) */}
         {!isPremium && (
-          <TouchableOpacity
+          <LiquidGlassCard
             style={styles.upgradeCard}
+            intensity={25}
             onPress={() => actions.setPhase('preview')}
-            activeOpacity={0.7}
           >
             <LinearGradient
-              colors={['#2d1b0e', '#1a1208']}
+              colors={['rgba(249,115,22,0.15)', 'rgba(45,27,14,0.6)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.upgradeCardBg}
-            >
-              <Text style={styles.upgradeEmoji}>✨</Text>
-              <Text style={styles.upgradeTitle}>Unlock your full trip</Text>
-              <Text style={styles.upgradeDesc}>
-                Get all hidden gems and unlimited guide messages
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.upgradeEmoji}>✨</Text>
+            <Text style={styles.upgradeTitle}>Unlock your full trip</Text>
+            <Text style={styles.upgradeDesc}>
+              Get all hidden gems and unlimited guide messages
+            </Text>
+          </LiquidGlassCard>
         )}
 
         {/* Actions */}
-        <View style={styles.actionsSection}>
+        <LiquidGlassCard style={styles.actionsSection} intensity={22}>
           <TouchableOpacity style={styles.actionRow} activeOpacity={0.6}>
             <Text style={styles.actionIcon}>↻</Text>
             <Text style={styles.actionText}>Restore purchases</Text>
@@ -136,7 +292,7 @@ export default function YouTab() {
             <Text style={[styles.actionIcon, styles.dangerIcon]}>↪</Text>
             <Text style={[styles.actionText, styles.dangerText]}>Sign out</Text>
           </TouchableOpacity>
-        </View>
+        </LiquidGlassCard>
 
         {/* Version */}
         <Text style={styles.versionText}>Offpath v1.0.0</Text>
@@ -212,13 +368,10 @@ const styles = StyleSheet.create({
 
   // Trip Card
   tripCard: {
-    marginHorizontal: 20,
-    backgroundColor: colors.bgCard,
-    borderRadius: radius.xl,
+    marginHorizontal: 16,
+    borderRadius: 22,
     padding: 22,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    marginBottom: 12,
   },
   tripCardHeader: {
     marginBottom: 8,
@@ -248,14 +401,174 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
 
+  // New Trip Button
+  newTripButton: {
+    marginHorizontal: 16,
+    marginBottom: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(249,115,22,0.07)',
+  },
+  newTripIcon: {
+    color: colors.accent,
+    fontSize: 18,
+    marginRight: 8,
+    lineHeight: 22,
+  },
+  newTripText: {
+    color: colors.accent,
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.semibold,
+  },
+
+  // Travel History section
+  historySection: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  historySectionTitle: {
+    color: colors.textMuted,
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 2,
+  },
+  seeAllText: {
+    color: colors.accent,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bgCard,
+    gap: 8,
+  },
+  seeAllButtonText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+  },
+  seeAllArrow: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.base,
+  },
+
+  // History card (image card)
+  historyCard: {
+    width: CARD_W,
+    height: 200,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  historyCardImage: {
+    borderRadius: 20,
+  },
+  historyCardGradient: {
+    flex: 1,
+    padding: 18,
+    justifyContent: 'space-between',
+  },
+  historyCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  historyStyleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 5,
+  },
+  historyStyleEmoji: {
+    fontSize: 13,
+  },
+  historyStyleText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    textTransform: 'capitalize',
+  },
+  historyCardDate: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.medium,
+  },
+  historyCardBottom: {
+    gap: 4,
+  },
+  historyCardCity: {
+    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: typography.weights.heavy,
+    letterSpacing: -0.5,
+  },
+  historyCardCountry: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    marginBottom: 8,
+  },
+  historyCardMeta: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  historyMetaPill: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  historyMetaPillText: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.semibold,
+    textTransform: 'capitalize',
+  },
+
+  // Empty state
+  historyEmpty: {
+    borderRadius: radius.xl,
+    padding: 28,
+    alignItems: 'center',
+    gap: 10,
+  },
+  historyEmptyIcon: {
+    fontSize: 36,
+  },
+  historyEmptyText: {
+    color: colors.textMuted,
+    fontSize: typography.sizes.sm,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
   // Upgrade
   upgradeCard: {
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     borderRadius: radius.xl,
-    overflow: 'hidden',
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(249,115,22,0.2)',
+    padding: 24,
+    alignItems: 'center',
   },
   upgradeCardBg: {
     padding: 24,
@@ -281,13 +594,10 @@ const styles = StyleSheet.create({
 
   // Actions
   actionsSection: {
-    marginHorizontal: 20,
-    backgroundColor: colors.bgCard,
+    marginHorizontal: 16,
     borderRadius: radius.xl,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: 24,
+    overflow: 'hidden',
   },
   actionRow: {
     flexDirection: 'row',

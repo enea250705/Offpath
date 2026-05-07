@@ -19,6 +19,7 @@ import { api, friendlyError } from '../../services/api';
 import * as storage from '../../services/storage';
 import { colors, typography, spacing, radius } from '../../theme';
 import { GuideMessage } from '../../types';
+import LiquidGlassCard from '../../components/LiquidGlassCard';
 
 const FREE_MESSAGE_LIMIT = 3;
 const INITIAL_MESSAGE: GuideMessage = {
@@ -123,7 +124,7 @@ export default function GuideTab() {
         keyboardVerticalOffset={0}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <LiquidGlassCard style={styles.header} intensity={30}>
           <View style={styles.headerLeft}>
             <VoyaraAvatar size={42} />
             <View style={styles.headerText}>
@@ -139,7 +140,7 @@ export default function GuideTab() {
               {isPremium ? 'Unlimited' : `${Math.max(0, messagesRemaining)} left`}
             </Text>
           </View>
-        </View>
+        </LiquidGlassCard>
 
         {/* Messages */}
         <ScrollView
@@ -156,9 +157,9 @@ export default function GuideTab() {
               <View style={styles.avatarWrap}>
                 <VoyaraAvatar size={32} />
               </View>
-              <View style={styles.typingDots}>
+              <LiquidGlassCard style={styles.typingDots}>
                 <ActivityIndicator size="small" color={colors.accent} />
-              </View>
+              </LiquidGlassCard>
             </View>
           )}
         </ScrollView>
@@ -291,21 +292,19 @@ function MessageBubble({ message }: { message: GuideMessage }) {
       )}
       <View style={styles.messageBubbleCol}>
         {!isUser && <Text style={styles.guideLabel}>Voyara</Text>}
-        <View
-          style={[
-            styles.bubble,
-            isUser ? styles.bubbleUser : styles.bubbleAssistant,
-          ]}
-        >
-          <Text
-            style={[
-              styles.bubbleText,
-              isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant,
-            ]}
-          >
-            {message.text}
-          </Text>
-        </View>
+        {isUser ? (
+          <View style={[styles.bubble, styles.bubbleUser]}>
+            <Text style={[styles.bubbleText, styles.bubbleTextUser]}>
+              {message.text}
+            </Text>
+          </View>
+        ) : (
+          <LiquidGlassCard style={[styles.bubble, styles.bubbleAssistant]}>
+            <Text style={[styles.bubbleText, styles.bubbleTextAssistant]}>
+              {message.text}
+            </Text>
+          </LiquidGlassCard>
+        )}
       </View>
     </View>
   );
@@ -329,8 +328,9 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 16,
+    borderRadius: 0,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   headerLeft: {
     flexDirection: 'row',
@@ -408,7 +408,6 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   bubbleAssistant: {
-    backgroundColor: colors.bgCard,
     borderWidth: 1,
     borderColor: colors.border,
     borderTopLeftRadius: 4,
@@ -435,7 +434,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   typingDots: {
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     padding: 14,
     borderWidth: 1,
@@ -449,13 +447,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 12,
     paddingBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
   },
   textInput: {
     flex: 1,
-    backgroundColor: colors.bgCard,
     borderRadius: radius.lg,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -463,9 +458,10 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     maxHeight: 100,
     letterSpacing: 0,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginRight: 10,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   sendBtn: {
     width: 44,
