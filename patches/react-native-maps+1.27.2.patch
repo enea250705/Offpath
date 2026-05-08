@@ -11,7 +11,7 @@ index 17c1755..169ca5b 100644
  - (void)cacheViewIfNeeded;
  - (void)beginLoading;
 diff --git a/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm b/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm
-index f7da1e0..968274a 100644
+index f7da1e0..5150906 100644
 --- a/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm
 +++ b/node_modules/react-native-maps/ios/AirMaps/AIRMap.mm
 @@ -110,6 +110,10 @@ const NSInteger AIRMapMaxZoomLevel = 20;
@@ -20,7 +20,7 @@ index f7da1e0..968274a 100644
          _pointsOfInterestFilter = @[];
 +        // Enable POI tap support on iOS 16+
 +        if (@available(iOS 16.0, *)) {
-+            self.selectableMapFeatures = MKMapFeatureOptionsPointsOfInterest;
++            self.selectableMapFeatures = MKMapFeatureOptionPointsOfInterest;
 +        }
          [self listenToMemoryWarnings];
      }
