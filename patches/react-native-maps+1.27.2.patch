@@ -67,7 +67,7 @@ index d034034..deeb856 100644
  }
  
 diff --git a/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm b/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm
-index 447520d..de2e234 100644
+index 447520d..39ce979 100644
 --- a/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm
 +++ b/node_modules/react-native-maps/ios/AirMaps/RNMapsMapView.mm
 @@ -425,6 +425,29 @@ mapViewEventEmitter->emitterFunction(data);                               \
@@ -90,7 +90,7 @@ index 447520d..de2e234 100644
 +            };
 +            facebook::react::RNMapsMapViewEventEmitter::OnPoiClick data = {
 +                .placeId = std::string([@"" UTF8String]),
-+                .name = std::string([[dictionary[@"name"] ?: @""] UTF8String]),
++                .name = std::string([(dictionary[@"name"] ? dictionary[@"name"] : @"") UTF8String]),
 +                .coordinate = coordinate,
 +                .position = position,
 +            };
