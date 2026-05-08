@@ -1,5 +1,5 @@
 // Offpath API service — network layer with retry + backoff
-import { TripPlan, AuthUser, SessionAnswers, GuideMessage } from '../types';
+import { TripPlan, AuthUser, SessionAnswers, GuideMessage, TripMemory } from '../types';
 
 // ─── Surprise city picker (shared by GeneratingScreen + generateTrip) ──
 type Tagged = { city: string; styles: string[]; groups: string[] };
@@ -277,6 +277,7 @@ export const api = {
     // Map local field names to backend-expected names
     const payload: Record<string, any> = {
       destination,
+      destinationCountry: answers.destinationCountry || '',
       travelStyle: answers.style || 'culture',
       travelerGroup: answers.group || 'solo',
       tripLength: answers.tripLength || 5,
@@ -324,6 +325,26 @@ export const api = {
       {
         method: 'GET',
         headers: this._headers(true),
+      },
+    );
+  },
+
+  // ── Trip History (cross-device sync) ──────────────────────
+  async getTrips(): Promise<TripPlan[]> {
+    return fetchWithRetry(
+      `${BASE_URL}/v1/trips`,
+      { method: 'GET', headers: this._headers(true) },
+      20_000,
+    );
+  },
+
+  async updateTripMemories(tripId: string, memories: TripMemory[]): Promise<void> {
+    await fetchWithRetry(
+      `${BASE_URL}/v1/trips/${tripId}/memories`,
+      {
+        method: 'PATCH',
+        headers: this._headers(true),
+        body: JSON.stringify({ memories }),
       },
     );
   },

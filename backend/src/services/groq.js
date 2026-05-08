@@ -7,7 +7,12 @@ const MODEL = 'llama-3.3-70b-versatile';
 // The app pre-builds the itinerary skeleton with real Foursquare places.
 // AI only writes the narrative text — it cannot change or hallucinate places.
 
-async function generateTrip({ destination, travelStyle, travelerGroup, tripLength, organizedDays, hiddenPlaces, research }) {
+async function generateTrip({ destination, destinationCountry, travelStyle, travelerGroup, tripLength, organizedDays, hiddenPlaces, research }) {
+  // Resolve country: use provided value, fall back to letting AI determine it
+  const countryInstruction = destinationCountry
+    ? `"destinationCountry": "${destinationCountry}"  ← USE EXACTLY THIS, do not change it`
+    : `"destinationCountry": "REAL country name for ${destination}"`;
+
   const skeletonBlock = buildSkeletonBlock(organizedDays);
   const hiddenBlock   = buildHiddenBlock(hiddenPlaces);
   const researchBlock = buildResearchBlock(research);
@@ -30,7 +35,7 @@ ${researchBlock}
 Return ONLY valid JSON matching this exact structure (no markdown, no commentary):
 {
   "destinationCity": "${destination}",
-  "destinationCountry": "REAL country name for ${destination}",
+  ${countryInstruction},
   "intro": "2-sentence intro, opinionated and specific to this city and traveler type",
   "shareLine": "one punchy sentence they would send to friends",
   "previewDays": [first day only — same structure as fullDays],

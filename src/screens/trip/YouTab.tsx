@@ -1,5 +1,5 @@
 // Offpath — You Tab (Account / Profile)
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,26 +9,90 @@ import {
   Alert,
   ImageBackground,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '../../store/AppContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme';
-import { TripPlan } from '../../types';
 import { getCityPhoto } from '../../services/pexels';
 import LiquidGlassCard from '../../components/LiquidGlassCard';
-
-const PREVIEW_COUNT = 3;
 
 const SCREEN_W = Dimensions.get('window').width;
 const CARD_W = SCREEN_W - 32;
 
-const STYLE_EMOJI: Record<string, string> = {
-  slow: '🌿',
-  food: '🍜',
-  culture: '🏛️',
-  nightlife: '🌙',
-};
+// Photo collage that grows like a puzzle: 1=full, 2=halves, 3=left+right split, 4+=grid
+function CollageGrid({ photos, count }: { photos: (string | null)[]; count: number }) {
+  const h = 220;
+  const w = CARD_W;
+  const gap = 3;
+  const fallback = '#1a1208';
+
+  if (count === 0) return null;
+
+  const Cell = ({ uri, style }: { uri?: string | null; style: object }) => (
+    <View style={[{ backgroundColor: fallback, overflow: 'hidden' }, style]}>
+      {uri ? <ImageBackground source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+    </View>
+  );
+
+  if (count === 1) {
+    return <Cell uri={photos[0]} style={[StyleSheet.absoluteFill, { borderRadius: 24 }]} />;
+  }
+  if (count === 2) {
+    const hw = (w - gap) / 2;
+    return (
+      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', borderRadius: 24, overflow: 'hidden' }]}>
+        <Cell uri={photos[0]} style={{ width: hw, height: h }} />
+        <View style={{ width: gap }} />
+        <Cell uri={photos[1]} style={{ width: hw, height: h }} />
+      </View>
+    );
+  }
+  if (count === 3) {
+    const lw = w * 0.55;
+    const rw = w - lw - gap;
+    const rh = (h - gap) / 2;
+    return (
+      <View style={[StyleSheet.absoluteFill, { flexDirection: 'row', borderRadius: 24, overflow: 'hidden' }]}>
+        <Cell uri={photos[0]} style={{ width: lw, height: h }} />
+        <View style={{ width: gap }} />
+        <View style={{ width: rw, flexDirection: 'column' }}>
+          <Cell uri={photos[1]} style={{ width: rw, height: rh }} />
+          <View style={{ height: gap }} />
+          <Cell uri={photos[2]} style={{ width: rw, height: rh }} />
+        </View>
+      </View>
+    );
+  }
+  // 4+ — 2x2 grid, last cell shows overflow count
+  const cw = (w - gap) / 2;
+  const ch = (h - gap) / 2;
+  const extra = count - 4;
+  return (
+    <View style={[StyleSheet.absoluteFill, { borderRadius: 24, overflow: 'hidden' }]}>
+      <View style={{ flexDirection: 'row' }}>
+        <Cell uri={photos[0]} style={{ width: cw, height: ch }} />
+        <View style={{ width: gap }} />
+        <Cell uri={photos[1]} style={{ width: cw, height: ch }} />
+      </View>
+      <View style={{ height: gap }} />
+      <View style={{ flexDirection: 'row' }}>
+        <Cell uri={photos[2]} style={{ width: cw, height: ch }} />
+        <View style={{ width: gap }} />
+        <View style={{ width: cw, height: ch, backgroundColor: '#1a1208', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' }}>
+          {photos[3] && <ImageBackground source={{ uri: photos[3] }} style={StyleSheet.absoluteFill} resizeMode="cover" />}
+          {extra > 0 && (
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontSize: 22, fontWeight: '800' }}>+{extra}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function YouTab() {
   const navigation = useNavigation<any>();
@@ -37,20 +101,13 @@ export default function YouTab() {
   const plan = state.plan;
   const isPremium = state.isPremium;
   const tripHistory = state.tripHistory ?? [];
-  const previewHistory = tripHistory.slice(0, PREVIEW_COUNT);
 
-  const [historyPhotos, setHistoryPhotos] = useState<Record<string, string | null>>({});
-
-  // Fetch photos only for the 3 preview cards
+  // Fetch photos for up to 4 trips (collage on entry card)
+  const [collagePhotos, setCollagePhotos] = useState<(string | null)[]>([]);
   useEffect(() => {
-    previewHistory.forEach((trip) => {
-      const key = trip.id ?? trip.destinationCity;
-      if (historyPhotos[key] !== undefined) return;
-      getCityPhoto(trip.destinationCity).then((url) => {
-        setHistoryPhotos((prev) => ({ ...prev, [key]: url }));
-      });
-    });
-  }, [tripHistory]);
+    const slice = tripHistory.slice(0, 4);
+    Promise.all(slice.map((t) => getCityPhoto(t.destinationCity))).then(setCollagePhotos);
+  }, [tripHistory.length]);
 
   const getInitials = () => {
     if (!user?.displayName) return '?';
@@ -88,76 +145,6 @@ export default function YouTab() {
     return new Date(createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   };
 
-  const renderHistoryCard = (trip: TripPlan, index: number) => {
-    const key = trip.id ?? trip.destinationCity;
-    const photo = historyPhotos[key];
-    const days = trip.fullDays?.length || trip.previewDays?.length || 0;
-    const emoji = STYLE_EMOJI[trip.travelStyle ?? ''] ?? '✈️';
-    const date = formatTripDate(trip.createdAt);
-
-    const cardContent = (
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.82)']}
-        locations={[0, 0.45, 1]}
-        style={styles.historyCardGradient}
-      >
-        {/* Top row */}
-        <View style={styles.historyCardTop}>
-          <View style={styles.historyStyleBadge}>
-            <Text style={styles.historyStyleEmoji}>{emoji}</Text>
-            {trip.travelStyle && (
-              <Text style={styles.historyStyleText}>{trip.travelStyle}</Text>
-            )}
-          </View>
-          {date ? <Text style={styles.historyCardDate}>{date}</Text> : null}
-        </View>
-
-        {/* Bottom content */}
-        <View style={styles.historyCardBottom}>
-          <Text style={styles.historyCardCity}>{trip.destinationCity}</Text>
-          <Text style={styles.historyCardCountry}>{trip.destinationCountry}</Text>
-          <View style={styles.historyCardMeta}>
-            {days > 0 && (
-              <View style={styles.historyMetaPill}>
-                <Text style={styles.historyMetaPillText}>{days} days</Text>
-              </View>
-            )}
-            {trip.travelerGroup && (
-              <View style={styles.historyMetaPill}>
-                <Text style={styles.historyMetaPillText}>{trip.travelerGroup}</Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </LinearGradient>
-    );
-
-    if (photo) {
-      return (
-        <ImageBackground
-          key={key}
-          source={{ uri: photo }}
-          style={styles.historyCard}
-          imageStyle={styles.historyCardImage}
-        >
-          {cardContent}
-        </ImageBackground>
-      );
-    }
-
-    // Fallback gradient when no photo yet
-    return (
-      <LinearGradient
-        key={key}
-        colors={['#1a1208', '#2d1b0e', '#3d2510']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.historyCard}
-      >
-        {cardContent}
-      </LinearGradient>
-    );
-  };
 
   return (
     <View style={styles.container}>
@@ -218,16 +205,9 @@ export default function YouTab() {
           <Text style={styles.newTripText}>Plan a new trip</Text>
         </TouchableOpacity>
 
-        {/* Travel History */}
+        {/* Travel History entry card */}
         <View style={styles.historySection}>
-          <View style={styles.historyHeader}>
-            <Text style={styles.historySectionTitle}>TRAVEL HISTORY</Text>
-            {tripHistory.length > PREVIEW_COUNT && (
-              <TouchableOpacity onPress={() => navigation.navigate('History')} activeOpacity={0.7}>
-                <Text style={styles.seeAllText}>See all {tripHistory.length}</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          <Text style={styles.historySectionTitle}>TRAVEL HISTORY</Text>
 
           {tripHistory.length === 0 ? (
             <LiquidGlassCard style={styles.historyEmpty} intensity={20}>
@@ -235,19 +215,37 @@ export default function YouTab() {
               <Text style={styles.historyEmptyText}>No past trips yet. Your adventures will show up here.</Text>
             </LiquidGlassCard>
           ) : (
-            <>
-              {previewHistory.map((trip, i) => renderHistoryCard(trip, i))}
-              {tripHistory.length > PREVIEW_COUNT && (
-                <LiquidGlassCard
-                  style={styles.seeAllButton}
-                  intensity={20}
-                  onPress={() => navigation.navigate('History')}
-                >
-                  <Text style={styles.seeAllButtonText}>See all {tripHistory.length} trips</Text>
-                  <Text style={styles.seeAllArrow}>→</Text>
-                </LiquidGlassCard>
-              )}
-            </>
+            <TouchableOpacity
+              activeOpacity={0.92}
+              onPress={() => navigation.navigate('History')}
+              style={styles.historyEntryCard}
+            >
+              {/* Photo collage — grows with each trip */}
+              <CollageGrid photos={collagePhotos} count={tripHistory.length} />
+
+              {/* Dark overlay */}
+              <LinearGradient
+                colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.72)']}
+                locations={[0.2, 1]}
+                style={[StyleSheet.absoluteFill, { borderRadius: 24 }]}
+              />
+
+              {/* Top row */}
+              <View style={styles.historyEntryTop}>
+                <View style={styles.historyEntryBadge}>
+                  <Text style={styles.historyEntryBadgeText}>
+                    {tripHistory.length} {tripHistory.length === 1 ? 'trip' : 'trips'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
+              </View>
+
+              {/* Bottom CTA */}
+              <View style={styles.historyEntryBottom}>
+                <Text style={styles.historyEntryTitle}>Your journeys</Text>
+                <Text style={styles.historyEntrySub}>Tap to relive every trip</Text>
+              </View>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -430,119 +428,56 @@ const styles = StyleSheet.create({
   historySection: {
     marginHorizontal: 16,
     marginBottom: 24,
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
+    gap: 12,
   },
   historySectionTitle: {
     color: colors.textMuted,
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.bold,
     letterSpacing: 2,
-  },
-  seeAllText: {
-    color: colors.accent,
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.bgCard,
-    gap: 8,
-  },
-  seeAllButtonText: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.semibold,
-  },
-  seeAllArrow: {
-    color: colors.textSecondary,
-    fontSize: typography.sizes.base,
+    marginBottom: 2,
   },
 
-  // History card (image card)
-  historyCard: {
-    width: CARD_W,
-    height: 200,
-    borderRadius: 20,
+  // Single entry card
+  historyEntryCard: {
+    height: 220,
+    borderRadius: 24,
     overflow: 'hidden',
-    marginBottom: 14,
-  },
-  historyCardImage: {
-    borderRadius: 20,
-  },
-  historyCardGradient: {
-    flex: 1,
-    padding: 18,
+    padding: 20,
     justifyContent: 'space-between',
+    backgroundColor: '#1a1208',
   },
-  historyCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  historyStyleBadge: {
+  historyEntryTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'space-between',
+  },
+  historyEntryBadge: {
+    backgroundColor: 'rgba(249,115,22,0.25)',
     borderRadius: radius.pill,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 5,
-    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.4)',
   },
-  historyStyleEmoji: {
-    fontSize: 13,
-  },
-  historyStyleText: {
-    color: 'rgba(255,255,255,0.9)',
+  historyEntryBadgeText: {
+    color: colors.accent,
     fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-    textTransform: 'capitalize',
+    fontWeight: typography.weights.bold,
+    letterSpacing: 0.5,
   },
-  historyCardDate: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.medium,
+  historyEntryBottom: {
+    gap: 3,
   },
-  historyCardBottom: {
-    gap: 4,
-  },
-  historyCardCity: {
+  historyEntryTitle: {
     color: '#ffffff',
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: typography.weights.heavy,
     letterSpacing: -0.5,
   },
-  historyCardCountry: {
-    color: 'rgba(255,255,255,0.7)',
+  historyEntrySub: {
+    color: 'rgba(255,255,255,0.5)',
     fontSize: typography.sizes.sm,
-    fontWeight: typography.weights.medium,
-    marginBottom: 8,
-  },
-  historyCardMeta: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  historyMetaPill: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  historyMetaPillText: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: typography.sizes.xs,
-    fontWeight: typography.weights.semibold,
-    textTransform: 'capitalize',
   },
 
   // Empty state

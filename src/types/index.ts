@@ -8,6 +8,7 @@ export type AppPhase = 'onboarding' | 'generating' | 'stories' | 'preview' | 'au
 export interface SessionAnswers {
   destinationMode?: DestinationMode;
   destination: string;
+  destinationCountry?: string;   // country from autocomplete — used to geo-anchor Places search
   style?: TravelStyle;
   group?: TravelerGroup;
   tripLength: number; // 2–14
@@ -79,6 +80,14 @@ export interface GuideMessage {
   timestamp: string;
 }
 
+// ─── Trip Memories ─────────────────────────────────────────
+export interface TripMemory {
+  id: string;
+  text?: string;       // optional text note
+  photoUri?: string;   // optional photo from camera roll
+  createdAt: string;
+}
+
 // ─── Trip Plan ─────────────────────────────────────────────
 export interface TripPlan {
   id?: string;
@@ -97,6 +106,7 @@ export interface TripPlan {
   totalPlaces?: number;
   neighborhoodGroups?: string[];  // List of neighborhoods covered
   createdAt?: string;             // ISO date string when trip was generated
+  memories?: TripMemory[];        // User-added memories for this trip
 }
 
 // ─── Auth ──────────────────────────────────────────────────

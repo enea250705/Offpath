@@ -71,7 +71,7 @@ export default function OnboardingScreen() {
   }, [sessionAnswers.destination]);
 
   const selectSuggestion = (s: CitySuggestion) => {
-    actions.updateAnswers({ destination: s.city });
+    actions.updateAnswers({ destination: s.city, destinationCountry: s.country });
     setSuggestions([]);
   };
 

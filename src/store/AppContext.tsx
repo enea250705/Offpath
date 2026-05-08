@@ -4,10 +4,10 @@ import {
   AppPhase,
   AuthUser,
   TripPlan,
+  TripMemory,
   GuideMessage,
   SessionAnswers,
 } from '../types';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
 import * as storage from '../services/storage';
 
@@ -52,6 +52,7 @@ type Action =
   | { type: 'UPDATE_ANSWERS'; answers: Partial<SessionAnswers> }
   | { type: 'SET_STORY_PHOTOS'; photos: (string | null)[] }
   | { type: 'SET_TRIP_HISTORY'; history: TripPlan[] }
+  | { type: 'UPDATE_TRIP_MEMORIES'; tripKey: string; memories: TripMemory[] }
   | { type: 'START_NEW_TRIP' }
   | { type: 'RESET_SESSION' }
   | { type: 'RESTORE_DONE' };
@@ -96,6 +97,14 @@ function reducer(state: AppState, action: Action): AppState {
       return { ...state, storyPhotos: action.photos };
     case 'SET_TRIP_HISTORY':
       return { ...state, tripHistory: action.history };
+    case 'UPDATE_TRIP_MEMORIES': {
+      const updatedHistory = state.tripHistory.map((t) =>
+        (t.id ?? t.destinationCity) === action.tripKey
+          ? { ...t, memories: action.memories }
+          : t,
+      );
+      return { ...state, tripHistory: updatedHistory };
+    }
     case 'START_NEW_TRIP': {
       // Archive current plan to history if not already there
       const alreadyIn = state.plan
@@ -144,6 +153,7 @@ interface AppContextValue {
     addGuideMessage: (msg: GuideMessage) => void;
     setGuideMessages: (msgs: GuideMessage[]) => void;
     setStoryPhotos: (photos: (string | null)[]) => void;
+    updateTripMemories: (tripKey: string, memories: TripMemory[]) => Promise<void>;
   };
 }
 
@@ -157,7 +167,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const [user, plan, messages, history] = await Promise.all([
+        const [user, plan, messages, localHistory] = await Promise.all([
           storage.loadUser(),
           storage.loadPlan(),
           storage.loadGuideMessages(),
@@ -174,39 +184,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (messages.length) {
           dispatch({ type: 'SET_GUIDE_MESSAGES', messages });
         }
-        // Seed a demo past trip once for the dev account
-        let resolvedHistory = history;
-        const SEED_FLAG = 'offpath.historySeeded';
-        const alreadySeeded = await AsyncStorage.getItem(SEED_FLAG).catch(() => null);
-        if (
-          user?.email === 'eneamuja87@gmail.com' &&
-          resolvedHistory.length === 0 &&
-          !alreadySeeded
-        ) {
-          const demoTrip: TripPlan = {
-            id: 'demo-lisbon-2024',
-            destinationCity: 'Lisbon',
-            destinationCountry: 'Portugal',
-            intro: 'A sun-drenched city of fado, trams, and pastel de nata.',
-            shareLine: 'Lost in Lisbon and loving every second.',
-            previewDays: [],
-            fullDays: [
-              { id: 'd1', dayNumber: 1, title: 'Alfama & The Old Soul', mood: 'Wandering & Wondering', summary: '', moments: [] },
-              { id: 'd2', dayNumber: 2, title: 'Belém & The River', mood: 'Breezy & Historic', summary: '', moments: [] },
-              { id: 'd3', dayNumber: 3, title: 'LX Factory & Nightlife', mood: 'Creative & Electric', summary: '', moments: [] },
-            ],
-            hiddenPlaces: [],
-            heroCoordinate: { latitude: 38.7169, longitude: -9.1399 },
-            destinationCoordinate: { latitude: 38.7169, longitude: -9.1399 },
-            travelStyle: 'culture',
-            travelerGroup: 'solo',
-            totalPlaces: 12,
-            createdAt: new Date('2024-11-03').toISOString(),
-          };
-          resolvedHistory = [demoTrip];
-          await storage.saveTripHistory(resolvedHistory).catch(() => {});
-          await AsyncStorage.setItem(SEED_FLAG, '1').catch(() => {});
+
+        // ── Sync trips from backend if logged in ──────────────
+        // A valid trip must have a real UUID id AND a destinationCity.
+        // This strips: demo trips, anonymous trips, slim server responses, corrupt cache.
+        const isRealUuid = (id?: string) => /^[0-9a-f-]{36}$/.test(id ?? '');
+        const isValidTrip = (t: TripPlan) => isRealUuid(t.id) && !!t.destinationCity;
+
+        let resolvedHistory = localHistory.filter(isValidTrip);
+        if (user) {
+          try {
+            const serverTrips = (await api.getTrips()).filter(isValidTrip);
+            const serverMap = new Map(serverTrips.map(t => [t.id, t]));
+            const localOnly = resolvedHistory.filter(t => !serverMap.has(t.id));
+            const merged = [...serverTrips, ...localOnly];
+            resolvedHistory = merged;
+            await storage.saveTripHistory(merged).catch(() => {});
+          } catch (e) {
+            console.warn('[Sync] Trip restore sync failed, using local:', e);
+            // resolvedHistory already validated above
+          }
         }
+
         if (resolvedHistory.length) {
           dispatch({ type: 'SET_TRIP_HISTORY', history: resolvedHistory });
         }
@@ -235,6 +234,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       api.setToken(user.token);
       dispatch({ type: 'SET_USER', user });
       try { await storage.saveUser(user); } catch (e) { console.warn('[Storage] saveUser failed:', e); }
+
+      // ── Fetch trips from backend and merge with local history ──
+      try {
+        const [serverTrips, localHistory] = await Promise.all([
+          api.getTrips(),
+          storage.loadTripHistory(),
+        ]);
+
+        // Build a map of server trips keyed by id
+        const serverMap = new Map(serverTrips.map(t => [t.id, t]));
+
+        // Merge: server trips win, but include any local-only trips not yet on server
+        const localOnlyTrips = localHistory.filter(t => t.id && !serverMap.has(t.id));
+        const merged = [...serverTrips, ...localOnlyTrips];
+
+        if (merged.length) {
+          dispatch({ type: 'SET_TRIP_HISTORY', history: merged });
+          await storage.saveTripHistory(merged).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('[Sync] Failed to fetch trips from backend:', e);
+        // Fall back to local — already loaded during restore
+      }
     }, []),
 
     logout: useCallback(async () => {
@@ -295,6 +317,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       (photos: (string | null)[]) => dispatch({ type: 'SET_STORY_PHOTOS', photos }),
       [],
     ),
+
+    updateTripMemories: useCallback(async (tripKey: string, memories: TripMemory[]) => {
+      dispatch({ type: 'UPDATE_TRIP_MEMORIES', tripKey, memories });
+
+      // Save locally first (fast, works offline)
+      try {
+        const history = await storage.loadTripHistory();
+        const updated = history.map((t) =>
+          (t.id ?? t.destinationCity) === tripKey ? { ...t, memories } : t,
+        );
+        await storage.saveTripHistory(updated);
+      } catch (e) { console.warn('[Storage] updateTripMemories failed:', e); }
+
+      // Push to backend (best-effort, so other devices see it)
+      // Only trips that have a real UUID id (not city-based keys) can sync
+      const isUuid = /^[0-9a-f-]{36}$/.test(tripKey);
+      if (isUuid && api.getToken()) {
+        api.updateTripMemories(tripKey, memories).catch((e) =>
+          console.warn('[Sync] Failed to push memories to backend:', e),
+        );
+      }
+    }, []),
   };
 
   return (
