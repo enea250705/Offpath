@@ -7,8 +7,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import Purchases from 'react-native-purchases';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,12 +37,12 @@ const CTA: Record<string, string> = {
 };
 
 export default function PreviewScreen() {
-  const { state, actions } = useApp();
+  const { state, actions, dispatch } = useApp();
   const plan = state.plan;
   const isLoggedIn = !!state.user;
 
-  // Pre-select the Trip Pass (best single-trip value)
   const [selected, setSelected] = useState<string>('trippass');
+  const [loading, setLoading] = useState(false);
 
   if (!plan) return null;
 
@@ -48,14 +50,50 @@ export default function PreviewScreen() {
   const days = plan.fullDays?.length ? plan.fullDays : plan.previewDays || [];
   const lockedCount = days.filter(d => (d.moments?.length || 0) > 2).length;
 
-  const handleCTA = () => {
+  const handleCTA = async () => {
     const product = PURCHASE_PRODUCTS.find(p => p.tier === selected);
     if (!product) return;
-    Alert.alert(
-      'Purchase',
-      'In-app purchases require a production build. For now, use the free tier.',
-      [{ text: 'OK' }],
-    );
+    setLoading(true);
+    try {
+      const offerings = await Purchases.getOfferings();
+      const pkg = offerings.current?.availablePackages.find(
+        p => p.product.identifier === product.id,
+      );
+      if (!pkg) {
+        Alert.alert('Not available', 'This product is not available right now. Please try again later.');
+        return;
+      }
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const isPremium = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
+      if (isPremium) {
+        dispatch({ type: 'SET_PREMIUM', isPremium: true });
+        actions.setPhase('trip');
+      }
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        Alert.alert('Purchase failed', 'Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRestore = async () => {
+    setLoading(true);
+    try {
+      const ci = await Purchases.restorePurchases();
+      const isPremium = typeof ci.entitlements.active['premium'] !== 'undefined';
+      if (isPremium) {
+        dispatch({ type: 'SET_PREMIUM', isPremium: true });
+        actions.setPhase('trip');
+      } else {
+        Alert.alert('No purchases found', 'No active purchases were found for this account.');
+      }
+    } catch {
+      Alert.alert('Restore failed', 'Could not restore purchases. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFreeTier = () => {
@@ -230,15 +268,21 @@ export default function PreviewScreen() {
         })}
 
         {/* ── Primary CTA ── */}
-        <TouchableOpacity style={s.ctaBtn} onPress={handleCTA} activeOpacity={0.88}>
+        <TouchableOpacity style={s.ctaBtn} onPress={handleCTA} activeOpacity={0.88} disabled={loading}>
           <LinearGradient
             colors={['#FB923C', '#F97316', '#EA6D0E']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={s.ctaBtnGradient}
           >
-            <Ionicons name="lock-open" size={18} color="#fff" />
-            <Text style={s.ctaBtnText}>{CTA[selected]}</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="lock-open" size={18} color="#fff" />
+                <Text style={s.ctaBtnText}>{CTA[selected]}</Text>
+              </>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -262,7 +306,7 @@ export default function PreviewScreen() {
         )}
 
         {/* Restore */}
-        <TouchableOpacity style={s.restoreBtn}>
+        <TouchableOpacity style={s.restoreBtn} onPress={handleRestore} disabled={loading}>
           <Text style={s.restoreText}>Restore purchases</Text>
         </TouchableOpacity>
       </ScrollView>

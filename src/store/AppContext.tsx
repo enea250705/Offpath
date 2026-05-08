@@ -10,6 +10,9 @@ import {
 } from '../types';
 import { api } from '../services/api';
 import * as storage from '../services/storage';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
+
+const RC_API_KEY = 'appl_XxsbMrRMAbONBUbAvKCdduNSXMM';
 
 // ─── State Shape ───────────────────────────────────────────
 interface AppState {
@@ -168,6 +171,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // Init RevenueCat
+        Purchases.setLogLevel(LOG_LEVEL.ERROR);
+        Purchases.configure({ apiKey: RC_API_KEY });
+
         const [user, plan, messages, localHistory] = await Promise.all([
           storage.loadUser(),
           storage.loadPlan(),
@@ -178,6 +185,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (user) {
           api.setToken(user.token);
           dispatch({ type: 'SET_USER', user });
+          try { await Purchases.logIn(user.id); } catch {}
         }
         if (plan) {
           dispatch({ type: 'SET_PLAN', plan });
@@ -185,6 +193,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (messages.length) {
           dispatch({ type: 'SET_GUIDE_MESSAGES', messages });
         }
+
+        // Check premium entitlement
+        try {
+          const ci = await Purchases.getCustomerInfo();
+          const isPremium = typeof ci.entitlements.active['premium'] !== 'undefined';
+          dispatch({ type: 'SET_PREMIUM', isPremium });
+        } catch {}
 
         // ── Sync trips from backend if logged in ──────────────
         // A valid trip must have a real UUID id AND a destinationCity.
@@ -235,6 +250,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       api.setToken(user.token);
       dispatch({ type: 'SET_USER', user });
       try { await storage.saveUser(user); } catch (e) { console.warn('[Storage] saveUser failed:', e); }
+      try {
+        await Purchases.logIn(user.id);
+        const ci = await Purchases.getCustomerInfo();
+        const isPremium = typeof ci.entitlements.active['premium'] !== 'undefined';
+        dispatch({ type: 'SET_PREMIUM', isPremium });
+      } catch {}
 
       // ── Fetch trips from backend and merge with local history ──
       try {
