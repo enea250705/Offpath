@@ -149,6 +149,7 @@ interface AppContextValue {
     logout: () => Promise<void>;
     setPlan: (plan: TripPlan) => Promise<void>;
     startNewTrip: () => Promise<void>;
+    deleteAccount: () => Promise<void>;
     updateAnswers: (a: Partial<SessionAnswers>) => void;
     addGuideMessage: (msg: GuideMessage) => void;
     setGuideMessages: (msgs: GuideMessage[]) => void;
@@ -337,6 +338,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         api.updateTripMemories(tripKey, memories).catch((e) =>
           console.warn('[Sync] Failed to push memories to backend:', e),
         );
+      }
+    }, []),
+ 
+    deleteAccount: useCallback(async () => {
+      try {
+        await api.deleteAccount();
+        api.setToken(null);
+        dispatch({ type: 'RESET_SESSION' });
+        await storage.clearAll();
+      } catch (e) {
+        console.warn('[Sync] Failed to delete account from server:', e);
+        // Still clear local data if server fails
+        api.setToken(null);
+        dispatch({ type: 'RESET_SESSION' });
+        await storage.clearAll();
       }
     }, []),
   };

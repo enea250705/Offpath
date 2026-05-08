@@ -348,6 +348,12 @@ export const api = {
       },
     );
   },
+  async deleteAccount(): Promise<void> {
+    await fetchWithRetry(
+      `${BASE_URL}/v1/auth/account`,
+      { method: 'DELETE', headers: this._headers(true) }
+    );
+  },
 };
 
 // ─── Error Message Helpers ─────────────────────────────────

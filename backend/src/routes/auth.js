@@ -5,6 +5,7 @@ const crypto     = require('crypto');
 const appleSignin = require('apple-signin-auth');
 const { OAuth2Client } = require('google-auth-library');
 const { Resend } = require('resend');
+const { requireAuth } = require('../middleware/auth');
 const { pool } = require('../db');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -212,6 +213,23 @@ router.post('/social', async (req, res) => {
   } catch (err) {
     console.error('[auth/social]', err);
     res.status(401).json({ error: 'Social auth failed' });
+  }
+});
+
+// DELETE /v1/auth/account — Wipe user data (Apple requirement)
+router.delete('/account', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    // Delete trips first (foreign keys)
+    await pool.query('DELETE FROM trips WHERE user_id = $1', [userId]);
+    // Delete user
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    console.error('[auth/delete]', err);
+    res.status(500).json({ error: 'Failed to delete account' });
   }
 });
 

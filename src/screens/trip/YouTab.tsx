@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { useApp } from '../../store/AppContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme';
 import { getCityPhoto } from '../../services/pexels';
@@ -138,6 +139,21 @@ export default function YouTab() {
         { text: "Let's go", onPress: () => actions.startNewTrip() },
       ],
     );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Permanently delete account?',
+      'All your trips, memories, and profile info will be wiped forever. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete everything', style: 'destructive', onPress: () => actions.deleteAccount() },
+      ],
+    );
+  };
+
+  const openLink = (url: string) => {
+    WebBrowser.openBrowserAsync(url);
   };
 
   const formatTripDate = (createdAt?: string) => {
@@ -277,18 +293,40 @@ export default function YouTab() {
             <Text style={styles.actionText}>Restore purchases</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionRow} activeOpacity={0.6}>
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={() => openLink('https://offpath.app/privacy')}
+            activeOpacity={0.6}
+          >
             <Text style={styles.actionIcon}>🔒</Text>
             <Text style={styles.actionText}>Privacy Policy</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionRow, styles.actionRowLast]}
+            style={styles.actionRow}
+            onPress={() => openLink('https://offpath.app/terms')}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.actionIcon}>📝</Text>
+            <Text style={styles.actionText}>Terms of Service</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionRow}
             onPress={handleSignOut}
             activeOpacity={0.6}
           >
             <Text style={[styles.actionIcon, styles.dangerIcon]}>↪</Text>
             <Text style={[styles.actionText, styles.dangerText]}>Sign out</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionRow, styles.actionRowLast]}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.6}
+          >
+            <Text style={[styles.actionIcon, styles.dangerIcon]}>🗑️</Text>
+            <Text style={[styles.actionText, styles.dangerText]}>Delete account</Text>
           </TouchableOpacity>
         </LiquidGlassCard>
 
