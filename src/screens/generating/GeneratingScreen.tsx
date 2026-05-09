@@ -1,15 +1,17 @@
 // Offpath — Cinematic Generating Screen
 // Real map with geodesic arc, animated plane, camera zoom, pulsing markers
 // Animation runs immediately with estimated destination; API runs concurrently.
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   Animated,
   Dimensions,
   ActivityIndicator,
   Image,
+  Alert,
+  TouchableOpacity,
+  StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -171,6 +173,8 @@ export default function GeneratingScreen() {
   const [planeIdx, setPlaneIdx] = useState(0);
   const [trailEnd, setTrailEnd] = useState(0);
   const [realDestCoord, setRealDestCoord] = useState<LocationCoordinate | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
+  const retryCount = useRef(0);
 
   const mapRef = useRef<MapView>(null);
   const flightProgress = useRef(new Animated.Value(0)).current;
@@ -317,59 +321,71 @@ export default function GeneratingScreen() {
     };
   }, [ready, arcPoints]);
 
-  // ─── API call (always concurrent) ───────────────────────
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        console.log('[GEN] Starting trip generation...');
-        const plan = await api.generateTrip(resolvedAnswers);
-        if (cancelled) return;
+  // ─── API call (retryable) ───────────────────────────────
+  const runGeneration = useCallback(async () => {
+    setGenError(null);
+    setApiDone(false);
+    retryCount.current += 1;
+    const attempt = retryCount.current;
 
-        console.log('[GEN] Trip generated:', plan?.destinationCity);
+    try {
+      console.log(`[GEN] Starting trip generation (attempt ${attempt})...`);
 
-        // Save real coordinates for camera zoom
-        if (plan?.destinationCoordinate) {
-          setRealDestCoord(plan.destinationCoordinate);
-        } else if (plan?.heroCoordinate) {
-          setRealDestCoord(plan.heroCoordinate);
-        }
+      // Wake up Render backend — free tier cold-start can take 50s+
+      try { await fetch('https://offpath.onrender.com/health', { signal: AbortSignal.timeout(55_000) }); } catch {}
 
-        // Prefetch story photos while animation finishes — StoriesScreen gets them instantly
-        if (isPexelsConfigured() && plan?.destinationCity) {
-          getStoryPhotos(plan.destinationCity).then(photos => {
-            if (!cancelled) {
-              actions.setStoryPhotos(photos);
-              photos.forEach(url => { if (url) Image.prefetch(url).catch(() => {}); });
-            }
-          }).catch(() => {});
-        }
+      const plan = await api.generateTrip(resolvedAnswers);
 
-        await actions.setPlan(plan);
-      } catch (err) {
-        console.error('[GEN] Trip generation failed:', err);
-      } finally {
-        if (!cancelled) setApiDone(true);
+      if (!plan || !plan.destinationCity) {
+        throw new Error('Server returned an empty trip plan. Please try again.');
       }
-    })();
-    return () => { cancelled = true; };
+
+      console.log('[GEN] Trip generated:', plan?.destinationCity);
+
+      // Save real coordinates for camera zoom
+      if (plan?.destinationCoordinate) {
+        setRealDestCoord(plan.destinationCoordinate);
+      } else if (plan?.heroCoordinate) {
+        setRealDestCoord(plan.heroCoordinate);
+      }
+
+      // Prefetch story photos while animation finishes
+      if (isPexelsConfigured() && plan?.destinationCity) {
+        getStoryPhotos(plan.destinationCity).then(photos => {
+          actions.setStoryPhotos(photos);
+          photos.forEach(url => { if (url) Image.prefetch(url).catch(() => {}); });
+        }).catch(() => {});
+      }
+
+      await actions.setPlan(plan);
+      setApiDone(true);
+    } catch (err: any) {
+      console.error(`[GEN] Trip generation failed (attempt ${attempt}):`, err);
+      setGenError(
+        err?.code === 'timeout'
+          ? 'The server is taking longer than usual. Tap below to try again.'
+          : err?.code === 'no_internet'
+          ? 'No internet connection. Check your connection and try again.'
+          : 'Something went wrong generating your trip. Tap below to try again.',
+      );
+      setApiDone(true); // So the exit gate can evaluate
+    }
+  }, [resolvedAnswers]);
+
+  // First attempt on mount
+  useEffect(() => {
+    runGeneration();
   }, []);
 
-  // ─── Exit gate: both animation AND api must finish ──────
+  // ─── Exit gate: navigate only when plan is confirmed in context ────
   useEffect(() => {
-    if (apiDone && animDone) {
-      // Small delay so zoom finishes visually
+    // Only proceed when both gates are done AND plan is in context AND no error
+    if (animDone && state.plan && !genError) {
       setTimeout(() => {
-        if (state.plan) {
-          actions.setPhase('stories');
-        } else {
-          // API failed — go back to onboarding
-          console.warn('[GEN] No plan available, returning to onboarding');
-          actions.setPhase('onboarding');
-        }
+        actions.setPhase('stories');
       }, 300);
     }
-  }, [apiDone, animDone, state.plan]);
+  }, [animDone, state.plan, genError]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeIn }]}>
@@ -482,6 +498,30 @@ export default function GeneratingScreen() {
             })}
           </View>
         </LiquidGlassCard>
+
+        {/* Error / Retry overlay */}
+        {genError && (
+          <View style={styles.errorOverlay}>
+            <LiquidGlassCard style={styles.errorCard} intensity={35}>
+              <Text style={styles.errorEmoji}>⚠️</Text>
+              <Text style={styles.errorText}>{genError}</Text>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={runGeneration}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.retryBtnText}>Try again</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.backLink}
+                onPress={() => actions.setPhase('onboarding')}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.backLinkText}>← Change destination</Text>
+              </TouchableOpacity>
+            </LiquidGlassCard>
+          </View>
+        )}
       </View>
     </Animated.View>
   );
@@ -587,5 +627,58 @@ const styles = StyleSheet.create({
   stepDone: {
     color: 'rgba(255,255,255,0.3)',
     textDecorationLine: 'line-through',
+  },
+
+  // Error / Retry UI
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(13,17,23,0.8)',
+    zIndex: 100,
+    padding: 20,
+  },
+  errorCard: {
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.4)',
+  },
+  errorEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  retryBtn: {
+    backgroundColor: '#F97316',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 30,
+    marginBottom: 16,
+    width: '100%',
+    alignItems: 'center',
+  },
+  retryBtnText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  backLink: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  backLinkText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
