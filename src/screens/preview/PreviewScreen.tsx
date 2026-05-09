@@ -64,10 +64,15 @@ export default function PreviewScreen() {
         return;
       }
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      const isPremium = typeof customerInfo.entitlements.active['premium'] !== 'undefined';
-      if (isPremium) {
-        dispatch({ type: 'SET_PREMIUM', isPremium: true });
+      const isPremium = typeof customerInfo.entitlements.active['Premium'] !== 'undefined';
+      dispatch({ type: 'SET_PREMIUM', isPremium: true });
+      if (!isLoggedIn) {
+        actions.setPhase('auth');
+      } else {
         actions.setPhase('trip');
+      }
+      if (!isPremium) {
+        Alert.alert('Purchase successful', 'Your purchase was successful! If premium features are not active, tap Restore Purchases.');
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -82,7 +87,7 @@ export default function PreviewScreen() {
     setLoading(true);
     try {
       const ci = await Purchases.restorePurchases();
-      const isPremium = typeof ci.entitlements.active['premium'] !== 'undefined';
+      const isPremium = typeof ci.entitlements.active['Premium'] !== 'undefined';
       if (isPremium) {
         dispatch({ type: 'SET_PREMIUM', isPremium: true });
         actions.setPhase('trip');

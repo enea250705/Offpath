@@ -108,10 +108,11 @@ async function fetchWithRetry(
   url: string,
   options: FetchOptions,
   timeoutMs = 30_000,
+  maxRetries = MAX_RETRIES,
 ): Promise<any> {
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -154,7 +155,7 @@ async function fetchWithRetry(
       }
     }
 
-    if (attempt < MAX_RETRIES - 1) {
+    if (attempt < maxRetries - 1) {
       await delay(INITIAL_BACKOFF_MS * Math.pow(2, attempt));
     }
   }
@@ -293,7 +294,8 @@ export const api = {
         headers,
         body: JSON.stringify(payload),
       },
-      90_000, // trip gen can be slow
+      180_000, // trip gen slow on Render cold-start; server handles Groq retries internally
+      1,       // no frontend retries — each retry = another Groq call → rate limit
     ) as TripPlan;
 
     console.log('[API] generateTrip response city:', result?.destinationCity, 'coord:', result?.destinationCoordinate);
