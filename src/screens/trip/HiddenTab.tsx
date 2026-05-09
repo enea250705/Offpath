@@ -14,7 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import LiquidGlassCard from '../../components/LiquidGlassCard';
-import { useApp } from '../../store/AppContext';
+import { useApp, isTripUnlocked } from '../../store/AppContext';
 import { colors, typography, spacing, radius, shadows } from '../../theme';
 import { HiddenPlace } from '../../types';
 
@@ -99,7 +99,7 @@ function HiddenPlaceCard({ place }: { place: HiddenPlace }) {
 export default function HiddenTab() {
   const { state, actions } = useApp();
   const plan = state.plan;
-  const isPremium = state.isPremium;
+  const isPremium = isTripUnlocked(state, plan?.id);
 
   if (!plan) return null;
 

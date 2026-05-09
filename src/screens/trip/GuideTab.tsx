@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../store/AppContext';
+import { useApp, isTripUnlocked } from '../../store/AppContext';
 import { api, friendlyError } from '../../services/api';
 import * as storage from '../../services/storage';
 import { colors, typography, spacing, radius } from '../../theme';
@@ -32,7 +32,7 @@ const INITIAL_MESSAGE: GuideMessage = {
 export default function GuideTab() {
   const { state, actions } = useApp();
   const plan = state.plan;
-  const isPremium = state.isPremium;
+  const isPremium = isTripUnlocked(state, plan?.id);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);

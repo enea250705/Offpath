@@ -9,6 +9,7 @@ const KEYS = {
   guideMessages: 'offpath.guideMessages',
   tripHistory: 'offpath.tripHistory',
   reviewRequested: 'offpath.reviewRequested',
+  unlockState: 'offpath.unlockState',
 };
 
 // ─── Auth (Secure Store) ───────────────────────────────────
@@ -97,7 +98,27 @@ export async function markReviewRequested(): Promise<void> {
   await AsyncStorage.setItem(KEYS.reviewRequested, 'true');
 }
 
+// ─── Unlock State (AsyncStorage) ──────────────────────────
+type UnlockState = { unlockedTripIds: string[]; tripCredits: number; isYearlyActive: boolean };
+
+export async function saveUnlockState(data: UnlockState): Promise<void> {
+  await AsyncStorage.setItem(KEYS.unlockState, JSON.stringify(data));
+}
+
+export async function loadUnlockState(): Promise<UnlockState> {
+  try {
+    const raw = await AsyncStorage.getItem(KEYS.unlockState);
+    return raw ? (JSON.parse(raw) as UnlockState) : { unlockedTripIds: [], tripCredits: 0, isYearlyActive: false };
+  } catch {
+    return { unlockedTripIds: [], tripCredits: 0, isYearlyActive: false };
+  }
+}
+
+export async function clearUnlockState(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.unlockState);
+}
+
 // ─── Clear All ─────────────────────────────────────────────
 export async function clearAll(): Promise<void> {
-  await Promise.all([clearUser(), clearPlan(), clearGuideMessages(), clearTripHistory()]);
+  await Promise.all([clearUser(), clearPlan(), clearGuideMessages(), clearTripHistory(), clearUnlockState()]);
 }

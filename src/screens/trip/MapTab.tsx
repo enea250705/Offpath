@@ -18,7 +18,7 @@ import {
 import MapView, { Marker, Region, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../store/AppContext';
+import { useApp, isTripUnlocked } from '../../store/AppContext';
 import { colors, typography, radius, shadows } from '../../theme';
 import LiquidGlassCard from '../../components/LiquidGlassCard';
 
@@ -173,7 +173,7 @@ async function fetchOsrmRoute(
 export default function MapTab() {
   const { state } = useApp();
   const plan      = state.plan;
-  const isPremium = state.isPremium;
+  const isPremium = isTripUnlocked(state, plan?.id);
 
   // Existing pin card
   const [selectedPin, setSelectedPin] = useState<ModernPinData | null>(null);

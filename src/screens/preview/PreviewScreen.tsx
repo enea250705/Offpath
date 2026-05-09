@@ -64,15 +64,22 @@ export default function PreviewScreen() {
         return;
       }
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      const isPremium = typeof customerInfo.entitlements.active['Premium'] !== 'undefined';
-      dispatch({ type: 'SET_PREMIUM', isPremium: true });
+      const currentTripId = plan?.id;
+
+      if (selected === 'yearly') {
+        const isYearly = typeof customerInfo.entitlements.active['Premium'] !== 'undefined';
+        dispatch({ type: 'SET_YEARLY', active: isYearly || true });
+      } else if (selected === 'trippass' && currentTripId) {
+        dispatch({ type: 'UNLOCK_TRIP', tripId: currentTripId });
+      } else if (selected === 'tripack3' && currentTripId) {
+        dispatch({ type: 'UNLOCK_TRIP', tripId: currentTripId });
+        dispatch({ type: 'SET_TRIP_CREDITS', credits: 2 });
+      }
+
       if (!isLoggedIn) {
         actions.setPhase('auth');
       } else {
         actions.setPhase('trip');
-      }
-      if (!isPremium) {
-        Alert.alert('Purchase successful', 'Your purchase was successful! If premium features are not active, tap Restore Purchases.');
       }
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -87,12 +94,13 @@ export default function PreviewScreen() {
     setLoading(true);
     try {
       const ci = await Purchases.restorePurchases();
-      const isPremium = typeof ci.entitlements.active['Premium'] !== 'undefined';
-      if (isPremium) {
-        dispatch({ type: 'SET_PREMIUM', isPremium: true });
-        actions.setPhase('trip');
+      const isYearly = typeof ci.entitlements.active['Premium'] !== 'undefined';
+      if (isYearly) {
+        dispatch({ type: 'SET_YEARLY', active: true });
+        if (!isLoggedIn) actions.setPhase('auth');
+        else actions.setPhase('trip');
       } else {
-        Alert.alert('No purchases found', 'No active purchases were found for this account.');
+        Alert.alert('No purchases found', 'No active purchases found. One-time Trip Passes cannot be restored — they are linked to your account.');
       }
     } catch {
       Alert.alert('Restore failed', 'Could not restore purchases. Please try again.');

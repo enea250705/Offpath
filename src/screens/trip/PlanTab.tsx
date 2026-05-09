@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useApp } from '../../store/AppContext';
+import { useApp, isTripUnlocked } from '../../store/AppContext';
 import { colors } from '../../theme';
 import { ItineraryDay, ItineraryMoment } from '../../types';
 import { getCityPhoto } from '../../services/pexels';
@@ -363,7 +363,7 @@ function DayCard({
 export default function PlanTab() {
   const { state, actions } = useApp();
   const plan = state.plan;
-  const isPremium = state.isPremium;
+  const isPremium = isTripUnlocked(state, plan?.id);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(
     new Set([plan?.fullDays?.[0]?.id || '0']),
   );

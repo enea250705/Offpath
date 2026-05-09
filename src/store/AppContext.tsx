@@ -15,13 +15,15 @@ import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 const RC_API_KEY = 'appl_XxsbMrRMAbONBUbAvKCdduNSXMM';
 
 // ─── State Shape ───────────────────────────────────────────
-interface AppState {
+export interface AppState {
   phase: AppPhase;
   user: AuthUser | null;
   plan: TripPlan | null;
   tripHistory: TripPlan[];
   guideMessages: GuideMessage[];
-  isPremium: boolean;
+  unlockedTripIds: string[];
+  tripCredits: number;
+  isYearlyActive: boolean;
   sessionAnswers: SessionAnswers;
   isRestoring: boolean;
   storyPhotos: (string | null)[] | null;
@@ -38,7 +40,9 @@ const initialState: AppState = {
   plan: null,
   tripHistory: [],
   guideMessages: [],
-  isPremium: false,
+  unlockedTripIds: [],
+  tripCredits: 0,
+  isYearlyActive: false,
   sessionAnswers: initialAnswers,
   isRestoring: true,
   storyPhotos: null,
@@ -51,7 +55,10 @@ type Action =
   | { type: 'SET_PLAN'; plan: TripPlan }
   | { type: 'SET_GUIDE_MESSAGES'; messages: GuideMessage[] }
   | { type: 'ADD_GUIDE_MESSAGE'; message: GuideMessage }
-  | { type: 'SET_PREMIUM'; isPremium: boolean }
+  | { type: 'UNLOCK_TRIP'; tripId: string }
+  | { type: 'SET_YEARLY'; active: boolean }
+  | { type: 'SET_TRIP_CREDITS'; credits: number }
+  | { type: 'SET_UNLOCK_STATE'; unlockedTripIds: string[]; tripCredits: number; isYearlyActive: boolean }
   | { type: 'UPDATE_ANSWERS'; answers: Partial<SessionAnswers> }
   | { type: 'SET_STORY_PHOTOS'; photos: (string | null)[] }
   | { type: 'SET_TRIP_HISTORY'; history: TripPlan[] }
@@ -79,18 +86,46 @@ function reducer(state: AppState, action: Action): AppState {
         state.plan && !alreadyInHistory
           ? [{ ...state.plan, createdAt: state.plan.createdAt ?? new Date().toISOString() }, ...state.tripHistory]
           : state.tripHistory;
+
+      // Auto-unlock new trip if tripCredits > 0
+      const newPlanId = action.plan.id;
+      let unlockedTripIds = state.unlockedTripIds;
+      let tripCredits = state.tripCredits;
+      if (newPlanId && tripCredits > 0 && !unlockedTripIds.includes(newPlanId)) {
+        unlockedTripIds = [...unlockedTripIds, newPlanId];
+        tripCredits = tripCredits - 1;
+      }
+
       return {
         ...state,
         plan: { ...action.plan, createdAt: action.plan.createdAt ?? new Date().toISOString() },
         tripHistory: newHistory,
+        unlockedTripIds,
+        tripCredits,
       };
     }
     case 'SET_GUIDE_MESSAGES':
       return { ...state, guideMessages: action.messages };
     case 'ADD_GUIDE_MESSAGE':
       return { ...state, guideMessages: [...state.guideMessages, action.message] };
-    case 'SET_PREMIUM':
-      return { ...state, isPremium: action.isPremium };
+    case 'UNLOCK_TRIP':
+      return {
+        ...state,
+        unlockedTripIds: state.unlockedTripIds.includes(action.tripId)
+          ? state.unlockedTripIds
+          : [...state.unlockedTripIds, action.tripId],
+      };
+    case 'SET_YEARLY':
+      return { ...state, isYearlyActive: action.active };
+    case 'SET_TRIP_CREDITS':
+      return { ...state, tripCredits: action.credits };
+    case 'SET_UNLOCK_STATE':
+      return {
+        ...state,
+        unlockedTripIds: action.unlockedTripIds,
+        tripCredits: action.tripCredits,
+        isYearlyActive: action.isYearlyActive,
+      };
     case 'UPDATE_ANSWERS':
       return {
         ...state,
@@ -125,7 +160,9 @@ function reducer(state: AppState, action: Action): AppState {
         ...initialState,
         isRestoring: false,
         user: state.user,
-        isPremium: state.isPremium,
+        unlockedTripIds: state.unlockedTripIds,
+        tripCredits: state.tripCredits,
+        isYearlyActive: state.isYearlyActive,
         tripHistory: historyWithCurrent,
         phase: 'onboarding',
       };
@@ -175,11 +212,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         Purchases.setLogLevel(LOG_LEVEL.ERROR);
         Purchases.configure({ apiKey: RC_API_KEY });
 
-        const [user, plan, messages, localHistory] = await Promise.all([
+        const [user, plan, messages, localHistory, unlockState] = await Promise.all([
           storage.loadUser(),
           storage.loadPlan(),
           storage.loadGuideMessages(),
           storage.loadTripHistory(),
+          storage.loadUnlockState(),
         ]);
 
         if (user) {
@@ -194,12 +232,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           dispatch({ type: 'SET_GUIDE_MESSAGES', messages });
         }
 
-        // Check premium entitlement
+        // Restore unlock state from storage
+        let isYearlyActive = unlockState.isYearlyActive;
+        // Also check RevenueCat entitlement for yearly subscription
         try {
           const ci = await Purchases.getCustomerInfo();
-          const isPremium = typeof ci.entitlements.active['premium'] !== 'undefined';
-          dispatch({ type: 'SET_PREMIUM', isPremium });
+          if (typeof ci.entitlements.active['Premium'] !== 'undefined') {
+            isYearlyActive = true;
+          }
         } catch {}
+        dispatch({
+          type: 'SET_UNLOCK_STATE',
+          unlockedTripIds: unlockState.unlockedTripIds,
+          tripCredits: unlockState.tripCredits,
+          isYearlyActive,
+        });
 
         // ── Sync trips from backend if logged in ──────────────
         // A valid trip must have a real UUID id AND a destinationCity.
@@ -240,6 +287,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  // Persist unlock state whenever it changes
+  useEffect(() => {
+    if (state.isRestoring) return; // don't overwrite during restore
+    storage.saveUnlockState({
+      unlockedTripIds: state.unlockedTripIds,
+      tripCredits: state.tripCredits,
+      isYearlyActive: state.isYearlyActive,
+    }).catch((e) => console.warn('[Storage] saveUnlockState failed:', e));
+  }, [state.unlockedTripIds, state.tripCredits, state.isYearlyActive, state.isRestoring]);
+
   const actions = {
     setPhase: useCallback(
       (phase: AppPhase) => dispatch({ type: 'SET_PHASE', phase }),
@@ -253,8 +310,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         await Purchases.logIn(user.id);
         const ci = await Purchases.getCustomerInfo();
-        const isPremium = typeof ci.entitlements.active['premium'] !== 'undefined';
-        dispatch({ type: 'SET_PREMIUM', isPremium });
+        if (typeof ci.entitlements.active['Premium'] !== 'undefined') {
+          dispatch({ type: 'SET_YEARLY', active: true });
+        }
       } catch {}
 
       // ── Fetch trips from backend and merge with local history ──
@@ -390,4 +448,9 @@ export function useApp(): AppContextValue {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
+}
+
+// ─── Helper ────────────────────────────────────────────────
+export function isTripUnlocked(state: AppState, tripId: string | undefined): boolean {
+  return state.isYearlyActive || (!!tripId && state.unlockedTripIds.includes(tripId));
 }
