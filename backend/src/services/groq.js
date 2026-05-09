@@ -88,13 +88,27 @@ CRITICAL RULES:
 - heroCoordinate and destinationCoordinate must be real GPS coordinates for ${destination}
 - All UUIDs must be unique valid UUID v4 strings`;
 
-  const response = await groq.chat.completions.create({
-    model:           MODEL,
-    messages:        [{ role: 'user', content: prompt }],
-    temperature:     0.65,
-    max_tokens:      4096,
-    response_format: { type: 'json_object' },
-  });
+  let response;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      response = await groq.chat.completions.create({
+        model:           MODEL,
+        messages:        [{ role: 'user', content: prompt }],
+        temperature:     0.65,
+        max_tokens:      4096,
+        response_format: { type: 'json_object' },
+      });
+      break;
+    } catch (err) {
+      if (err.status === 429 && attempt < 3) {
+        const retryAfter = parseInt(err.headers?.['retry-after'] ?? '35', 10);
+        console.warn(`[groq] Rate limited, retrying in ${retryAfter}s (attempt ${attempt + 1})`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+      } else {
+        throw err;
+      }
+    }
+  }
 
   return JSON.parse(response.choices[0].message.content);
 }

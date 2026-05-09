@@ -43,21 +43,24 @@ router.post('/full', optionalAuth, async (req, res) => {
       organizedDays, hiddenPlaces, research,
     });
 
-    // Persist the trip (user_id may be null for anonymous generation)
-    const result = await pool.query(
-      `INSERT INTO trips (user_id, destination_city, destination_country, intro, share_line, payload)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [
-        req.user?.id ?? null,
-        plan.destinationCity,
-        plan.destinationCountry,
-        plan.intro,
-        plan.shareLine,
-        JSON.stringify(plan)
-      ]
-    );
+    // Persist the trip — retry with null user_id if FK violation (user row deleted/DB reset)
+    let tripId;
+    for (const userId of [req.user?.id ?? null, null]) {
+      try {
+        const result = await pool.query(
+          `INSERT INTO trips (user_id, destination_city, destination_country, intro, share_line, payload)
+           VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+          [userId, plan.destinationCity, plan.destinationCountry, plan.intro, plan.shareLine, JSON.stringify(plan)]
+        );
+        tripId = result.rows[0].id;
+        break;
+      } catch (insertErr) {
+        if (insertErr.code === '23503' && userId !== null) continue; // FK violation → retry anonymous
+        throw insertErr;
+      }
+    }
 
-    res.json({ ...plan, id: result.rows[0].id });
+    res.json({ ...plan, id: tripId });
   } catch (err) {
     console.error('[trips/full]', err);
     res.status(500).json({ error: 'Failed to generate trip' });
