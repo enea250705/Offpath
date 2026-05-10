@@ -86,7 +86,7 @@ export default function StoriesScreen() {
   const goToSlide = useCallback(
     (index: number) => {
       if (index >= NUM_SLIDES) {
-        actions.setPhase('preview');
+        actions.setPhase(state.user ? 'trip' : 'auth');
         return;
       }
       if (index < 0) index = 0;
@@ -256,7 +256,7 @@ export default function StoriesScreen() {
                 transform: [{ translateY: textAnims[2].translateY }],
               }}
             >
-              <TouchableWithoutFeedback onPress={() => actions.setPhase('preview')}>
+              <TouchableWithoutFeedback onPress={() => actions.setPhase(state.user ? 'trip' : 'auth')}>
                 <View style={styles.seePlanBtn}>
                   <LinearGradient
                     colors={['#F97316', '#FB923C']}

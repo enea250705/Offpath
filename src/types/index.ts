@@ -8,7 +8,8 @@ export type AppPhase = 'onboarding' | 'generating' | 'stories' | 'preview' | 'au
 export interface SessionAnswers {
   destinationMode?: DestinationMode;
   destination: string;
-  destinationCountry?: string;   // country from autocomplete — used to geo-anchor Places search
+  destinationCountry?: string;     // country from autocomplete — used to geo-anchor Places search
+  destinationCountryCode?: string; // ISO2 code for flag display
   style?: TravelStyle;
   group?: TravelerGroup;
   tripLength: number; // 2–14

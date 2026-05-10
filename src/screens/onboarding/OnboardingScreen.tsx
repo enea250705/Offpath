@@ -71,7 +71,7 @@ export default function OnboardingScreen() {
   }, [sessionAnswers.destination]);
 
   const selectSuggestion = (s: CitySuggestion) => {
-    actions.updateAnswers({ destination: s.city, destinationCountry: s.country });
+    actions.updateAnswers({ destination: s.city, destinationCountry: s.country, destinationCountryCode: s.countryCode });
     setSuggestions([]);
   };
 
@@ -206,22 +206,43 @@ export default function OnboardingScreen() {
           <Text style={styles.questionLabel}>DESTINATION</Text>
           <Text style={styles.questionTitle}>Where are you headed?</Text>
 
-          <LiquidGlassCard style={styles.inputWrapper} intensity={25}>
-            <Ionicons name="location-outline" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
-            <TextInput
-              style={styles.textInput}
-              placeholder="Search city..."
-              placeholderTextColor={colors.textMuted}
-              value={sessionAnswers.destination}
-              onChangeText={(t) => actions.updateAnswers({ destination: t })}
-              autoCapitalize="words"
-              returnKeyType="done"
-              autoCorrect={false}
-            />
-            {suggestionsLoading && (
-              <ActivityIndicator size="small" color={colors.textMuted} style={{ marginLeft: 8 }} />
-            )}
-          </LiquidGlassCard>
+          {sessionAnswers.destination && sessionAnswers.destinationCountry ? (
+            <TouchableOpacity
+              style={styles.selectedCityChip}
+              onPress={() => actions.updateAnswers({ destination: '', destinationCountry: '', destinationCountryCode: '' })}
+              activeOpacity={0.7}
+            >
+              {sessionAnswers.destinationCountryCode ? (
+                <Image
+                  source={{ uri: `https://flagcdn.com/w40/${sessionAnswers.destinationCountryCode.toLowerCase()}.png` }}
+                  style={styles.flagImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.selectedCityName}>{sessionAnswers.destination}</Text>
+                <Text style={styles.selectedCityCountry}>{sessionAnswers.destinationCountry}</Text>
+              </View>
+              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          ) : (
+            <LiquidGlassCard style={styles.inputWrapper} intensity={25}>
+              <Ionicons name="location-outline" size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Search city..."
+                placeholderTextColor={colors.textMuted}
+                value={sessionAnswers.destination}
+                onChangeText={(t) => actions.updateAnswers({ destination: t, destinationCountry: '', destinationCountryCode: '' })}
+                autoCapitalize="words"
+                returnKeyType="done"
+                autoCorrect={false}
+              />
+              {suggestionsLoading && (
+                <ActivityIndicator size="small" color={colors.textMuted} style={{ marginLeft: 8 }} />
+              )}
+            </LiquidGlassCard>
+          )}
 
           {suggestions.length > 0 && (
             <LiquidGlassCard style={styles.suggestionsBox} intensity={30}>
@@ -660,6 +681,27 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 3,
     marginRight: 12,
+  },
+  selectedCityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(249,115,22,0.4)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  selectedCityName: {
+    color: colors.textPrimary,
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.semibold,
+  },
+  selectedCityCountry: {
+    color: colors.textMuted,
+    fontSize: typography.sizes.sm,
+    marginTop: 2,
   },
   flagPlaceholder: {
     backgroundColor: colors.bgElevated,

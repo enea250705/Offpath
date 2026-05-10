@@ -274,10 +274,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Determine starting phase
-        if (user && plan) {
-          dispatch({ type: 'SET_PHASE', phase: 'trip' });
-        } else if (plan) {
-          dispatch({ type: 'SET_PHASE', phase: 'preview' });
+        if (plan) {
+          dispatch({ type: 'SET_PHASE', phase: user ? 'trip' : 'auth' });
         }
       } catch {
         // Start fresh on error

@@ -89,6 +89,29 @@ router.post('/email', async (req, res) => {
       [JSON.stringify({ hash, name, mode: mode || 'login' }), email.toLowerCase()]
     );
 
+    // Dev account — skip email, return token directly
+    if (email.toLowerCase() === 'offpath43@gmail.com') {
+      const existing2 = await pool.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+      let devUser;
+      if (existing2.rows.length > 0) {
+        devUser = existing2.rows[0];
+      } else {
+        const hash = await bcrypt.hash(password, 10);
+        const name = displayName?.trim() || email.split('@')[0];
+        const ins = await pool.query(
+          `INSERT INTO users (email, password, display_name, provider) VALUES ($1, $2, $3, 'email') RETURNING *`,
+          [email.toLowerCase(), hash, name]
+        );
+        devUser = ins.rows[0];
+      }
+      return res.json({
+        id: devUser.id,
+        email: devUser.email,
+        displayName: devUser.display_name,
+        token: makeToken(devUser),
+      });
+    }
+
     await sendVerificationEmail(email.toLowerCase(), code);
 
     return res.json({ requiresVerification: true, email: email.toLowerCase() });

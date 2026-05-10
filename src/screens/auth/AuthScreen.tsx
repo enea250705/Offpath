@@ -94,12 +94,18 @@ export default function AuthScreen() {
     setLoading(true);
     setError('');
     try {
-      await api.emailAuth({
+      const authRes = await api.emailAuth({
         email: email.trim(),
         password,
         displayName: mode === 'signup' ? name.trim() || undefined : undefined,
         mode,
-      });
+      }) as any;
+      if (authRes.token) {
+        // Dev account — direct login, no verification step
+        await actions.login(authRes);
+        actions.setPhase(state.plan ? 'trip' : 'onboarding');
+        return;
+      }
       setCode('');
       startResendCooldown();
       setStep('verify');
