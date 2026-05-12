@@ -127,15 +127,27 @@ function computeGeodesicArc(
 
 function regionForCoordinates(a: LocationCoordinate, b: LocationCoordinate) {
   const midLat = (a.latitude + b.latitude) / 2;
-  const midLon = (a.longitude + b.longitude) / 2;
+  // Compute shortest-path longitude midpoint (handles antimeridian crossing)
+  let dLon = b.longitude - a.longitude;
+  if (dLon > 180) dLon -= 360;
+  if (dLon < -180) dLon += 360;
+  const midLon = a.longitude + dLon / 2;
   const dLat = Math.abs(a.latitude - b.latitude);
-  const dLon = Math.abs(a.longitude - b.longitude);
+  const spanLon = Math.abs(dLon);
   return {
     latitude: midLat,
     longitude: midLon,
-    latitudeDelta: Math.max(dLat * 1.6, 15),
-    longitudeDelta: Math.max(dLon * 1.6, 15),
+    latitudeDelta: Math.min(Math.max(dLat * 1.6, 15), 80),
+    longitudeDelta: Math.min(Math.max(spanLon * 1.6, 15), 160),
   };
+}
+
+function isValidRegion(r: ReturnType<typeof regionForCoordinates>) {
+  return (
+    isFinite(r.latitude) && isFinite(r.longitude) &&
+    isFinite(r.latitudeDelta) && r.latitudeDelta > 0 &&
+    isFinite(r.longitudeDelta) && r.longitudeDelta > 0
+  );
 }
 
 // ─── Dark map style ────────────────────────────────────────
@@ -280,7 +292,12 @@ export default function GeneratingScreen() {
 
     // Frame map on both points
     setTimeout(() => {
-      try { mapRef.current?.animateToRegion(regionForCoordinates(origin, destination), 1000); } catch {}
+      try {
+        const region = regionForCoordinates(origin, destination);
+        if (mapRef.current && isValidRegion(region)) {
+          mapRef.current.animateToRegion(region, 1000);
+        }
+      } catch {}
     }, 300);
 
     // Poll plane position at ~20fps
@@ -304,10 +321,15 @@ export default function GeneratingScreen() {
     const zoomTimer = setTimeout(() => {
       try {
         const zoomTarget = realDestCoord || destination;
-        mapRef.current?.animateCamera(
-          { center: zoomTarget, pitch: 45, heading: 0, zoom: 12, altitude: 5000 },
-          { duration: ZOOM_DURATION },
-        );
+        if (
+          mapRef.current &&
+          isFinite(zoomTarget.latitude) && isFinite(zoomTarget.longitude)
+        ) {
+          mapRef.current.animateCamera(
+            { center: zoomTarget, pitch: 45, heading: 0, zoom: 12, altitude: 5000 },
+            { duration: ZOOM_DURATION },
+          );
+        }
       } catch {}
     }, ZOOM_START_MS);
 
